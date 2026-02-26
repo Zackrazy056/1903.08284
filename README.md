@@ -37,3 +37,18 @@ Phases:
 - Add multi-simulation sweep (dozens of SXS cases) to reproduce error distribution panel.
 - Generate publication-style figure formatting to better match paper visuals.
 - Add automated parity report against paper trends (`N=0` bias vs high-`N` recovery).
+
+## GitHub Sync
+
+To keep this repository synced to GitHub:
+
+1. Configure remote once:
+   - `git remote add origin <your-github-repo-url>`
+2. Push current branch:
+   - `git push -u origin master`
+3. Run auto-sync loop (commit + push every 60s when changes exist):
+   - `powershell -ExecutionPolicy Bypass -File scripts/github_autosync.ps1 -RepoPath . -Branch master -IntervalSeconds 60`
+
+For one-shot sync:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/github_autosync.ps1 -RepoPath . -Branch master -RunOnce`
