@@ -1,0 +1,5 @@
+numpy==2.2.6
+scipy==1.17.1
+matplotlib==3.10.8
+qnm==0.4.4
+sxs==2025.0.23

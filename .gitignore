@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+.venv-wsl-pycbc/
+
+# Build/artifact folders
+results/
+figures/
+tmp/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
