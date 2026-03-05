@@ -1,0 +1,98 @@
+experiment:
+  id: fig10_reproduction_snpe
+  paper_arxiv: "1903.08284"
+  target_figure: "Fig.10"
+  description: >
+    Reproduce Fig.10 with SNPE using the same injection and inference setup.
+    This file is the immutable spec and must be treated as the single source of truth.
+
+reproducibility:
+  config_version: "v1.0.0"
+  random_seed_global: 190308284
+  freeze_immutable_spec: true
+
+numerics:
+  sample_rate_hz: 4096.0
+
+injection:
+  nr_source:
+    catalog: "SXS"
+    id: "SXS:BBH:0305"
+    spherical_harmonic_modes:
+      - l: 2
+        m: 2
+  detector:
+    geometry:
+      face_on: true
+      inclination_rad: 0.0
+      antenna_pattern:
+        F_plus: 1.0
+        F_cross: 0.0
+    noise:
+      type: "gaussian_stationary"
+      psd_name: "aligo_design"
+      psd_file: "data/psd/ZERO_DET_high_P.txt"
+      psd_url: "https://dcc.ligo.org/public/0002/T0900288/003/ZERO_DET_high_P.txt"
+  scaling:
+    total_initial_mass_msun_detector_frame: 72.0
+    luminosity_distance_mpc: 400.0
+  snr_definition:
+    metric: "post_peak_optimal"
+    target_value: 42.3
+    integration_fmin_hz: 154.68
+
+inference_model:
+  template: "kerr_qnm_overtone_eq1"
+  spherical_harmonic_mode:
+    l: 2
+    m: 2
+  overtone_model_orders:
+    min_N: 0
+    max_N: 3
+    evaluate_N_list: [0, 1, 2, 3]
+  start_time:
+    definition: "delta_t0 = t0 - t_h_peak"
+    delta_t0_ms: 0.0
+    anchor: "detector_strain_peak"
+
+truth_parameters:
+  Mf_msun: 68.5
+  chi_f: 0.69
+
+priors:
+  Mf_msun:
+    distribution: "uniform"
+    min: 10.0
+    max: 100.0
+  chi_f:
+    distribution: "uniform"
+    min: 0.0
+    max: 1.0
+  phase_phi_n:
+    distribution: "uniform"
+    min: 0.0
+    max: 6.283185307179586
+    unit: "rad"
+  amplitude_A_n:
+    distribution: "uniform"
+    measured_at: "t_h_peak"
+    h_peak: 2.0e-21
+    min_in_h_peak_units: 0.01
+    max_in_h_peak_units: 250.0
+
+sampler_reference:
+  paper_baseline_methods: ["kombine", "emcee"]
+  sanity_check_method: "emcee"
+  note: >
+    In this setup N>=3 differences are not measurable at the target SNR.
+    N=4 introduces additional degeneracy and is excluded from primary reproduction.
+
+artifacts:
+  required_phase_a:
+    - "outputs/diagnostics/peak_alignment.png"
+    - "outputs/diagnostics/snr_report.json"
+  required_phase_b:
+    - "outputs/fig10_mcmc_smoke.png"
+    - "outputs/diagnostics/mcmc_traceplots.pdf"
+  required_phase_c:
+    - "outputs/fig10_snpe.png"

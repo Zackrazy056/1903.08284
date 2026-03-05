@@ -1,0 +1,57 @@
+{
+  "created_utc": "2026-03-01T04:55:08.599495+00:00",
+  "experiment": "round3_coldstart_try2_dynamic_noise_plus_strong_overfit",
+  "N": 1,
+  "n_samples": 100,
+  "feature_dim": 94,
+  "optimizer": {
+    "lr": 0.0008,
+    "batch_size": 20,
+    "epochs_dynamic": 20,
+    "epochs_overfit": 500,
+    "noise_floor_scale": 0.0,
+    "maf_hidden_features": 192,
+    "maf_num_transforms": 8,
+    "renorm_on_overfit_stage": true
+  },
+  "standardization_checks": {
+    "x_calib_global_mean": -0.3517219126224518,
+    "x_calib_global_std": 13.634458541870117,
+    "x_std_global_mean": 0.0012799185933545232,
+    "x_std_global_std": 1.0440313816070557,
+    "x_std_mean_abs_max_per_dim": 0.08659309148788452,
+    "x_std_std_min_per_dim": 0.9700892567634583,
+    "x_std_std_max_per_dim": 1.196482539176941
+  },
+  "micro_overfit": {
+    "loss_dynamic_first": 4.124012184143067,
+    "loss_dynamic_last": 1.7495921850204468,
+    "loss_overfit_first": 1.6057856559753418,
+    "loss_overfit_last": -1.9860240936279296,
+    "loss_overfit_min": -2.0767666339874267,
+    "mean_nll_on_train": -2.169060707092285,
+    "min_nll_on_train": -6.893352508544922,
+    "posterior_std_scaled": [
+      0.12167103588581085,
+      0.1533794105052948
+    ],
+    "posterior_std_phys": [
+      5.475196838378906,
+      0.0766897052526474
+    ],
+    "posterior_mean_phys_for_first_x": [
+      66.79705810546875,
+      0.31565576791763306
+    ],
+    "first_train_theta_phys": [
+      62.25505447387695,
+      0.26800161600112915
+    ]
+  },
+  "pass_flags": {
+    "standardization_close_to_unit_gaussian": true,
+    "theta_scaled_inside_minus1_plus1": true,
+    "nll_below_zero_on_train": true,
+    "posterior_concentrates_for_first_x": true
+  }
+}

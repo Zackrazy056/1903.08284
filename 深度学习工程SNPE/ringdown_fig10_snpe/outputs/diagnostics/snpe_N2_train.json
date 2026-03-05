@@ -1,0 +1,30 @@
+{
+  "created_utc": "2026-02-28T16:36:41.447154+00:00",
+  "target_N": 2,
+  "n_modes": 3,
+  "feature_dim": 94,
+  "n_bins": 47,
+  "device": "cpu",
+  "posterior_num_samples": 40000,
+  "rounds": [
+    {
+      "round_id": 0,
+      "n_simulations": 2500,
+      "proposal_type": "prior"
+    },
+    {
+      "round_id": 1,
+      "n_simulations": 2500,
+      "proposal_type": "posterior_truncated_99hpd"
+    },
+    {
+      "round_id": 2,
+      "n_simulations": 1500,
+      "proposal_type": "posterior_truncated_narrower"
+    }
+  ],
+  "files": {
+    "posterior_pickle": "outputs/checkpoints/snpe_N2_posterior.pkl",
+    "posterior_samples_npz": "outputs/posteriors/snpe_N2_posterior_samples.npz"
+  }
+}

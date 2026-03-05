@@ -1,0 +1,39 @@
+{
+  "created_utc": "2026-02-28T16:11:49.207534+00:00",
+  "simulation": "SXS:BBH:0305",
+  "sxs_lev": 6,
+  "snr_postpeak": 40.1895317437353,
+  "snr_target": 42.3,
+  "snr_abs_error": 2.1104682562646957,
+  "fmin": 154.68,
+  "Mf_total": 72.0,
+  "D": "400.0Mpc",
+  "psd": "aligo_design",
+  "psd_file": "data/psd/ZERO_DET_high_P.txt",
+  "delta_t0_ms": 0.0,
+  "peak_times": {
+    "t_peak_sec": 1.3095431191039153,
+    "t_h_peak_sec": 1.3090821535458315,
+    "t_h_minus_t_peak_ms": -0.46096555808383677
+  },
+  "postpeak_duration_ms": 54.19921875,
+  "sample_rate_hz": 4096.0,
+  "n_samples": 223,
+  "truth_parameters": {
+    "Mf_msun": 68.5,
+    "chi_f": 0.69
+  },
+  "remnant_from_sxs_metadata": {
+    "remnant_mass": 0.9520329397043087,
+    "remnant_dimensionless_spin": [
+      5.253958683511938e-08,
+      -2.4567336559285058e-08,
+      0.6920851868170271
+    ]
+  },
+  "files": {
+    "injection_npz": "data/injection/d_obs.npz",
+    "peak_plot": "outputs/diagnostics/peak_alignment.png",
+    "psd_file": "data/psd/ZERO_DET_high_P.txt"
+  }
+}

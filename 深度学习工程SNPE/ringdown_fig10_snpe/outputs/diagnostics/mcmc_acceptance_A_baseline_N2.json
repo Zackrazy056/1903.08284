@@ -1,0 +1,43 @@
+{
+  "created_utc": "2026-03-01T02:58:06.771111+00:00",
+  "model_tag": "A_baseline",
+  "use_bias": false,
+  "target_N": 2,
+  "n_modes": 3,
+  "ndim": 8,
+  "n_walkers": 48,
+  "n_steps": 4000,
+  "burn_in": 1000,
+  "thin": 10,
+  "n_posterior_samples": 14400,
+  "delta_t0_ms": 0.0,
+  "fmin_hz": 154.68,
+  "truth": {
+    "Mf_msun": 68.5,
+    "chi_f": 0.69
+  },
+  "acceptance_fraction": {
+    "mean": 0.05884895833333333,
+    "min": 0.004,
+    "max": 0.13125
+  },
+  "posterior_Mf": {
+    "mean": 29.327910258582854,
+    "std": 28.84214623352063,
+    "p05": 10.007026782817873,
+    "p50": 15.993374128091931,
+    "p95": 99.98771952453791
+  },
+  "posterior_chi_f": {
+    "mean": 0.4354699932965411,
+    "std": 0.2609105484171667,
+    "p05": 0.11489727680823394,
+    "p50": 0.4052220073218299,
+    "p95": 0.8894402082358895
+  },
+  "files": {
+    "figure": "outputs/fig10_mcmc_smoke_A_baseline_N2.png",
+    "traceplots": "outputs/diagnostics/mcmc_traceplots_A_baseline_N2.pdf",
+    "chain_npz": "outputs/diagnostics/mcmc_chain_smoke_A_baseline_N2.npz"
+  }
+}

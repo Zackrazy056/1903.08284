@@ -9,6 +9,7 @@ __pycache__/
 .venv/
 venv/
 .venv-wsl-pycbc/
+.venv_fig10_clean/
 
 # Build/artifact folders
 results/

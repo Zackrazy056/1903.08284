@@ -9,6 +9,7 @@ from .types import Waveform22
 
 def peak_time_from_strain(wf: Waveform22) -> float:
     """Return t_peak where |h22| is maximal."""
+    # t_peak 的定义会影响后续 t0 网格和拟合窗口，是关键系统量。
     idx = int(np.argmax(np.abs(wf.h)))
     return float(wf.t[idx])
 
@@ -57,8 +58,8 @@ def build_start_time_grid(
     """
     if m_total <= 0 or step_m <= 0:
         raise ValueError("m_total and step_m must be positive")
+    # 以 M 为单位构造等间距 t0 网格，便于与论文中的 Δt0/M 对齐。
     start = t_peak + rel_start_m * m_total
     end = t_peak + rel_end_m * m_total
     n = int(np.floor((end - start) / (step_m * m_total))) + 1
     return start + np.arange(n) * (step_m * m_total)
-

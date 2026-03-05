@@ -1,0 +1,95 @@
+{
+  "created_utc": "2026-03-01T02:58:19.834120+00:00",
+  "target_N": 2,
+  "metric_order": [
+    "strict_pass",
+    "truth_hpd_rank",
+    "edge_occupancy",
+    "acceptance_mean"
+  ],
+  "models": [
+    {
+      "model_tag": "A_baseline",
+      "use_bias": false,
+      "N": 2,
+      "assessment": {
+        "pass": false,
+        "failed_checks": [
+          "truth_in_90_hpd",
+          "acceptance_mean",
+          "acceptance_min_per_walker",
+          "mf_edge_1pct"
+        ],
+        "checks": {
+          "truth_in_90_hpd": false,
+          "acceptance_mean": false,
+          "acceptance_min_per_walker": false,
+          "mf_edge_1pct": false,
+          "chi_edge_1pct": true,
+          "mf_iqr_fraction_of_prior": true,
+          "chi_iqr_fraction_of_prior": true,
+          "strict_pass": false
+        },
+        "metrics": {
+          "truth_in_90_hpd": false,
+          "truth_hpd_rank": 1.0,
+          "hpd90_threshold_count": 31.0,
+          "truth_bin_density_count": 0.0,
+          "acceptance_mean": 0.05884895833333333,
+          "acceptance_min_per_walker": 0.004,
+          "acceptance_max_per_walker": 0.13125,
+          "mf_edge_1pct": 0.39229166666666665,
+          "chi_edge_1pct": 0.0,
+          "edge_occupancy": 0.39229166666666665,
+          "mf_iqr_fraction_of_prior": 0.33920227463452574,
+          "chi_iqr_fraction_of_prior": 0.48912269790082086
+        }
+      },
+      "summary_file": "outputs/diagnostics/mcmc_acceptance_A_baseline_N2.json",
+      "chain_file": "outputs/diagnostics/mcmc_chain_smoke_A_baseline_N2.npz",
+      "figure_file": "outputs/fig10_mcmc_smoke_A_baseline_N2.png"
+    },
+    {
+      "model_tag": "B_bias",
+      "use_bias": true,
+      "N": 2,
+      "assessment": {
+        "pass": false,
+        "failed_checks": [
+          "truth_in_90_hpd",
+          "acceptance_mean",
+          "acceptance_min_per_walker",
+          "mf_edge_1pct"
+        ],
+        "checks": {
+          "truth_in_90_hpd": false,
+          "acceptance_mean": false,
+          "acceptance_min_per_walker": false,
+          "mf_edge_1pct": false,
+          "chi_edge_1pct": true,
+          "mf_iqr_fraction_of_prior": true,
+          "chi_iqr_fraction_of_prior": true,
+          "strict_pass": false
+        },
+        "metrics": {
+          "truth_in_90_hpd": false,
+          "truth_hpd_rank": 1.0,
+          "hpd90_threshold_count": 54.0,
+          "truth_bin_density_count": 0.0,
+          "acceptance_mean": 0.0796875,
+          "acceptance_min_per_walker": 0.00275,
+          "acceptance_max_per_walker": 0.1585,
+          "mf_edge_1pct": 0.11284722222222222,
+          "chi_edge_1pct": 0.0,
+          "edge_occupancy": 0.11284722222222222,
+          "mf_iqr_fraction_of_prior": 0.5570948917687785,
+          "chi_iqr_fraction_of_prior": 0.2685512147466118
+        }
+      },
+      "summary_file": "outputs/diagnostics/mcmc_acceptance_B_bias_N2.json",
+      "chain_file": "outputs/diagnostics/mcmc_chain_smoke_B_bias_N2.npz",
+      "figure_file": "outputs/fig10_mcmc_smoke_B_bias_N2.png"
+    }
+  ],
+  "recommended_model": "B_bias"
+}

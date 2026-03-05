@@ -64,6 +64,7 @@ def fit_at_start_time(
     t_end: float | None = None,
     *,
     lstsq_rcond: float = 1e-12,
+    include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
     max_overtone_to_fund_ratio: float | None = 1e4,
     min_signal_norm: float = 1e-14,
@@ -81,6 +82,7 @@ def fit_at_start_time(
         omegas=omegas,
         t0=t0,
         lstsq_rcond=lstsq_rcond,
+        include_constant_offset=include_constant_offset,
     )
     if max_condition_number is not None and lin.condition_number > max_condition_number:
         raise ValueError("design matrix ill-conditioned")
@@ -110,6 +112,7 @@ def scan_start_times_fixed_omegas(
     t_end: float | None = None,
     *,
     lstsq_rcond: float = 1e-12,
+    include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
     max_overtone_to_fund_ratio: float | None = 1e4,
     min_signal_norm: float = 1e-14,
@@ -126,6 +129,7 @@ def scan_start_times_fixed_omegas(
                 t0=float(t0),
                 t_end=t_end,
                 lstsq_rcond=lstsq_rcond,
+                include_constant_offset=include_constant_offset,
                 max_condition_number=max_condition_number,
                 max_overtone_to_fund_ratio=max_overtone_to_fund_ratio,
                 min_signal_norm=min_signal_norm,
@@ -146,6 +150,7 @@ def grid_search_remnant(
     t_end: float | None = None,
     *,
     lstsq_rcond: float = 1e-12,
+    include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
     max_overtone_to_fund_ratio: float | None = 1e4,
     min_signal_norm: float = 1e-14,
@@ -174,6 +179,7 @@ def grid_search_remnant(
                     t0=t0,
                     t_end=t_end,
                     lstsq_rcond=lstsq_rcond,
+                    include_constant_offset=include_constant_offset,
                     max_condition_number=max_condition_number,
                     max_overtone_to_fund_ratio=max_overtone_to_fund_ratio,
                     min_signal_norm=min_signal_norm,

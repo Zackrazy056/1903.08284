@@ -1,0 +1,39 @@
+{
+  "created_utc": "2026-02-28T16:21:22.161468+00:00",
+  "target_N": 1,
+  "n_modes": 2,
+  "ndim": 6,
+  "n_walkers": 48,
+  "n_steps": 4000,
+  "burn_in": 1000,
+  "thin": 10,
+  "n_posterior_samples": 14400,
+  "acceptance_fraction": {
+    "mean": 0.12482291666666667,
+    "min": 0.006,
+    "max": 0.2435
+  },
+  "posterior_Mf": {
+    "mean": 55.906221198210524,
+    "std": 38.44678222159923,
+    "p05": 10.0017333807819,
+    "p50": 84.70012923944495,
+    "p95": 99.96070653755983
+  },
+  "posterior_chi_f": {
+    "mean": 0.5961966074729623,
+    "std": 0.2642005761435592,
+    "p05": 0.1135321109005104,
+    "p50": 0.7784542580199263,
+    "p95": 0.839501102607034
+  },
+  "truth": {
+    "Mf_msun": 68.5,
+    "chi_f": 0.69
+  },
+  "files": {
+    "figure": "outputs/fig10_mcmc_smoke.png",
+    "traceplots": "outputs/diagnostics/mcmc_traceplots.pdf",
+    "chain_npz": "outputs/diagnostics/mcmc_chain_smoke.npz"
+  }
+}

@@ -7,6 +7,15 @@ from .compare import (
     window_waveform,
 )
 from .fit import LinearFitResult, build_design_matrix, solve_complex_lstsq
+from .fd_likelihood import (
+    FrequencyDomainRingdownLikelihood,
+    aligo_zero_det_high_power_psd,
+    continuous_ft_from_time_series,
+    draw_colored_noise_rfft,
+    one_sided_inner_product,
+    optimal_snr,
+    rfft_continuous,
+)
 from .frequencies import kerr_qnm_omega_lmn, kerr_qnm_omegas_22n, make_omega_provider_22
 from .io import load_waveform_csv, load_waveform_npz
 from .metrics import inner_product, mismatch, remnant_error_epsilon
@@ -30,6 +39,7 @@ from .types import Waveform22
 
 __all__ = [
     "LinearFitResult",
+    "FrequencyDomainRingdownLikelihood",
     "RemnantGridResult",
     "SXSRemnantInfo",
     "StartTimeFitResult",
@@ -57,5 +67,11 @@ __all__ = [
     "scan_start_times_fixed_omegas",
     "shift_time",
     "solve_complex_lstsq",
+    "aligo_zero_det_high_power_psd",
+    "continuous_ft_from_time_series",
+    "draw_colored_noise_rfft",
+    "one_sided_inner_product",
+    "optimal_snr",
+    "rfft_continuous",
     "window_waveform",
 ]

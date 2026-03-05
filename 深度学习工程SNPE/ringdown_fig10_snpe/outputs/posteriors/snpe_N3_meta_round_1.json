@@ -1,0 +1,20 @@
+{
+  "created_utc": "2026-03-04T14:46:22.801317+00:00",
+  "N": 3,
+  "round_id": 1,
+  "seed_global": 190308385,
+  "proposal_type": "posterior_truncated_99hpd",
+  "quantile_low": 0.005,
+  "quantile_high": 0.995,
+  "proposal_probe_samples": 12000,
+  "bounds": {
+    "Mf_msun": [
+      10.539430580139161,
+      99.26119541168212
+    ],
+    "chi_f": [
+      0.007110556908883155,
+      0.9927018547058105
+    ]
+  }
+}

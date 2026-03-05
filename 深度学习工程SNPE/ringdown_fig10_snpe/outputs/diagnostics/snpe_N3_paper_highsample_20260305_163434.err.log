@@ -1,0 +1,4 @@
+WARNING (pytensor.configdefaults): g++ not available, if using conda: `conda install gxx`
+WARNING (pytensor.configdefaults): g++ not detected!  PyTensor will be unable to compile C-implementations and will default to Python. Performance may be severely degraded. To remove this warning, set PyTensor flags cxx to an empty string.
+C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\summarize.py:86: RuntimeWarning: Downsampled FFT feature bins from 3478 to 1024.
+  warnings.warn(

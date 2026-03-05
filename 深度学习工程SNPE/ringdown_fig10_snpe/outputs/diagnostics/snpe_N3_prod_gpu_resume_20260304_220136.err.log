@@ -1,0 +1,10 @@
+WARNING (pytensor.configdefaults): g++ not available, if using conda: `conda install gxx`
+WARNING (pytensor.configdefaults): g++ not detected!  PyTensor will be unable to compile C-implementations and will default to Python. Performance may be severely degraded. To remove this warning, set PyTensor flags cxx to an empty string.
+C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\summarize.py:86: RuntimeWarning: Downsampled FFT feature bins from 3478 to 1024.
+  warnings.warn(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\nflows\transforms\lu.py:80: UserWarning: torch.triangular_solve is deprecated in favor of torch.linalg.solve_triangularand will be removed in a future PyTorch release.
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\builder\windows\pytorch\aten\src\ATen\native\BatchLinearAlgebra.cpp:2196.)
+  outputs, _ = torch.triangular_solve(

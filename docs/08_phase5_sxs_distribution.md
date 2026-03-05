@@ -18,6 +18,8 @@ This batch adds a sweep script to reproduce the paper's distribution-style diagn
   - near-aligned spins (`|chi_x|, |chi_y| <= aligned_tol`)
   - spin magnitudes `<= spin_abs_max`
 - Per-simulation `(Mf, chi_f)` grid search for each `N`.
+- Default fitting includes a complex constant-offset term `b` in the model basis.
+- Use `--no-constant-offset` for pure-QNM fallback scans.
 - Adaptive grid expansion when minimum lands on a boundary.
 - Outputs:
   - per-fit CSV

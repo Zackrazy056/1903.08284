@@ -1,0 +1,85 @@
+WARNING (pytensor.configdefaults): g++ not available, if using conda: `conda install gxx`
+WARNING (pytensor.configdefaults): g++ not detected!  PyTensor will be unable to compile C-implementations and will default to Python. Performance may be severely degraded. To remove this warning, set PyTensor flags cxx to an empty string.
+C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\summarize.py:86: RuntimeWarning: Downsampled FFT feature bins from 3478 to 1024.
+  warnings.warn(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py:177: UserWarning: Data x has device 'cuda:0'. Moving x to the data_device 'cuda'. Training will proceed on device 'cuda'.
+  theta, x = validate_theta_and_x(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py:177: UserWarning: Parameters theta has device 'cuda:0'. Moving theta to the data_device 'cuda'. Training will proceed on device 'cuda'.
+  theta, x = validate_theta_and_x(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\nflows\transforms\lu.py:80: UserWarning: torch.triangular_solve is deprecated in favor of torch.linalg.solve_triangularand will be removed in a future PyTorch release.
+torch.linalg.solve_triangular has its arguments reversed and does not return a copy of one of the inputs.
+X = torch.triangular_solve(B, A).solution
+should be replaced with
+X = torch.linalg.solve_triangular(A, B). (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\builder\windows\pytorch\aten\src\ATen\native\BatchLinearAlgebra.cpp:2196.)
+  outputs, _ = torch.triangular_solve(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py:177: UserWarning: Data x has device 'cuda:0'. Moving x to the data_device 'cuda'. Training will proceed on device 'cuda'.
+  theta, x = validate_theta_and_x(
+C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py:177: UserWarning: Parameters theta has device 'cuda:0'. Moving theta to the data_device 'cuda'. Training will proceed on device 'cuda'.
+  theta, x = validate_theta_and_x(
+Traceback (most recent call last):
+  File "C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\snpe_train.py", line 610, in <module>
+    main()
+  File "C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\snpe_train.py", line 523, in main
+    density_estimator = inference.train(
+                        ^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_c.py", line 203, in train
+    return super().train(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py", line 382, in train
+    train_losses = self._loss(
+                   ^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_base.py", line 651, in _loss
+    loss = -self._log_prob_proposal_posterior(theta, x, masks, proposal)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_c.py", line 320, in _log_prob_proposal_posterior
+    return self._log_prob_proposal_posterior_atomic(theta, x, masks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\inference\trainers\npe\npe_c.py", line 380, in _log_prob_proposal_posterior_atomic
+    log_prob_posterior = self._neural_net.log_prob(atomic_theta, repeated_x)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\sbi\neural_nets\estimators\nflows_flow.py", line 109, in log_prob
+    log_probs = self.net.log_prob(input, context=condition)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\nflows\distributions\base.py", line 40, in log_prob
+    return self._log_prob(inputs, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\nflows\flows\base.py", line 38, in _log_prob
+    embedded_context = self._embedding_net(context)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\GW QNM EMRI PROJECT\1903.08284 overtones\深度学习工程SNPE\ringdown_fig10_snpe\src\snpe_embedding.py", line 67, in forward
+    return self.net(x.unsqueeze(1))
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\97747\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\nn\modules\activation.py", line 734, in forward
+    return F.gelu(input, approximate=self.approximate)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.25 GiB. GPU 0 has a total capacity of 8.00 GiB of which 0 bytes is free. Of the allocated memory 21.34 GiB is allocated by PyTorch, and 285.67 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

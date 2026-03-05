@@ -1,0 +1,46 @@
+experiment_id: fig10_mcmc_smoke
+use_fig10_spec_from: "configs/fig10.yaml"
+
+mcmc:
+  enabled: true
+  target_overtone_order_N: 1
+  parameters:
+    infer:
+      - Mf_msun
+      - chi_f
+      - amplitudes_A_n
+      - phases_phi_n
+  sampler:
+    backend: emcee
+    n_walkers_rule: ">= 4 * ndim"
+    n_walkers_min: 48
+    n_steps: 4000
+    burn_in: 1000
+    thin: 10
+    init_strategy: "prior_jitter"
+  diagnostics:
+    save_corner_for:
+      - Mf_msun
+      - chi_f
+    save_traceplots: true
+    save_acceptance_fraction: true
+  evaluation:
+    mode: strict_near_paper
+    thresholds:
+      truth_in_90_hpd_required: true
+      acceptance_mean_min: 0.12
+      acceptance_min_per_walker_min: 0.02
+      mf_edge_1pct_max: 0.10
+      chi_edge_1pct_max: 0.05
+      mf_iqr_fraction_of_prior_max: 0.70
+      chi_iqr_fraction_of_prior_max: 0.70
+  model_bias_test:
+    enable_ab_on_fail: true
+    bias_prior_in_h_peak_units: [-0.2, 0.2]
+    ab_compare_metric_order: [strict_pass, truth_hpd_rank, edge_occupancy, acceptance_mean]
+
+outputs:
+  figure_baseline: "outputs/fig10_mcmc_smoke_A_baseline.png"
+  figure_bias: "outputs/fig10_mcmc_smoke_B_bias.png"
+  traceplots_baseline: "outputs/diagnostics/mcmc_traceplots_A_baseline.pdf"
+  traceplots_bias: "outputs/diagnostics/mcmc_traceplots_B_bias.pdf"

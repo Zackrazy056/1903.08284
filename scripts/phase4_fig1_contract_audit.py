@@ -13,6 +13,7 @@ import numpy as np
 import qnm
 
 from ringdown.compare import align_time_and_phase_by_window, interp_complex, window_waveform
+from ringdown.fit import build_design_matrix
 from ringdown.frequencies import kerr_qnm_omegas_22n
 from ringdown.preprocess import align_to_peak, build_start_time_grid
 from ringdown.scan import fit_at_start_time
@@ -45,6 +46,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--t-end", type=float, default=90.0)
     parser.add_argument("--n-max", type=int, default=7)
     parser.add_argument("--lstsq-rcond", type=float, default=None)
+    parser.add_argument(
+        "--no-constant-offset",
+        action="store_true",
+        help="Disable default complex constant-offset basis term b in baseline fitting.",
+    )
+    parser.add_argument(
+        "--diagnostic-constant-b",
+        action="store_true",
+        help="Enable diagnostic branch: add optional complex constant term b to model basis.",
+    )
+    parser.add_argument(
+        "--plot-only-diagnostic-constant-b",
+        action="store_true",
+        help="When diagnostic branch is enabled, plot only mismatch curves with (+b).",
+    )
 
     parser.add_argument("--max-dt-jitter-ratio-warn", type=float, default=1e-4)
     parser.add_argument("--min-rank-coverage-pass", type=float, default=0.95)
@@ -114,6 +130,41 @@ def _load_waveform(location: str, no_download: bool) -> tuple[Waveform22, float 
     return wf, info.remnant_mass, info.remnant_chif_z
 
 
+def _fit_with_constant_b(
+    t: np.ndarray,
+    h: np.ndarray,
+    omegas: np.ndarray,
+    t0: float,
+    *,
+    lstsq_rcond: float | None,
+) -> dict[str, float]:
+    a_base = build_design_matrix(t=t, omegas=omegas, t0=t0)
+    a = np.column_stack([a_base, np.ones((t.size, 1), dtype=complex)])
+    coeffs, residuals, rank, svals = np.linalg.lstsq(a, h, rcond=lstsq_rcond)
+    model = a @ coeffs
+    mm = _compute_mismatch_from_inner(h, model, t, method="trapezoid")
+    h_norm = float(np.linalg.norm(h))
+    b = complex(coeffs[-1])
+
+    if residuals.size > 0:
+        residual_norm = float(np.sqrt(np.real(residuals[0])))
+    else:
+        residual_norm = float(np.linalg.norm(h - model))
+    if svals.size == 0 or svals[-1] <= 0:
+        cond = float("inf")
+    else:
+        cond = float(np.abs(svals[0] / svals[-1]))
+
+    return {
+        "mismatch": float(mm),
+        "residual_norm": residual_norm,
+        "rank": float(rank),
+        "condition_number": cond,
+        "b_abs": float(np.abs(b)),
+        "b_over_signal_l2": float(np.abs(b) / h_norm) if h_norm > 0 else float("nan"),
+    }
+
+
 def _rank_coverage(points: list[dict[str, Any]], mode_count: int) -> float:
     if not points:
         return 0.0
@@ -161,6 +212,7 @@ def _build_markdown(report: dict[str, Any]) -> str:
     step1 = report["step1_window_contract"]
     verdicts = report["verdicts"]
     summary = report["fig1_curve_summary"]
+    diagnostic_enabled = bool(cfg.get("diagnostic_constant_b", False))
 
     lines: list[str] = []
     lines.append(f"# Fig.1 Contract Audit ({report['run_metadata']['timestamp_utc'][:10]})")
@@ -199,6 +251,18 @@ def _build_markdown(report: dict[str, Any]) -> str:
             f"{row['mismatch_at_t0_max']:.3e} | {row['turnover_ratio']:.1f} | "
             f"{row['rank_coverage']:.3f} | {row['max_condition_number']:.3e} |"
         )
+    if diagnostic_enabled:
+        lines.append("")
+        lines.append("## Diagnostic Constant-b Summary")
+        lines.append("| N | best_mm(+b) | mm@60M(+b) | median b_abs | median improvement(>=20M) |")
+        lines.append("|---:|---:|---:|---:|---:|")
+        for row in summary:
+            lines.append(
+                f"| {row['N']} | {row.get('diag_best_mismatch_with_b', float('nan')):.3e} | "
+                f"{row.get('diag_mismatch_at_t0_max_with_b', float('nan')):.3e} | "
+                f"{row.get('diag_median_b_abs', float('nan')):.3e} | "
+                f"{row.get('diag_median_improvement_factor_t0_ge20', float('nan')):.2e} |"
+            )
     lines.append("")
     lines.append("## Note")
     lines.append(
@@ -209,6 +273,8 @@ def _build_markdown(report: dict[str, Any]) -> str:
 
 def main() -> None:
     args = parse_args()
+    if args.plot_only_diagnostic_constant_b and not args.diagnostic_constant_b:
+        raise ValueError("--plot-only-diagnostic-constant-b requires --diagnostic-constant-b")
     thresholds = AuditThresholds(
         max_dt_jitter_ratio_warn=args.max_dt_jitter_ratio_warn,
         min_rank_coverage_pass=args.min_rank_coverage_pass,
@@ -258,7 +324,6 @@ def main() -> None:
                 "scaling_abs_error": float(np.abs((float(mf) * w) - w_bar)),
             }
         )
-
     for n in range(args.n_max + 1):
         omegas = kerr_qnm_omegas_22n(mf=float(mf), chif=float(chif), n_max=n)
         rows: list[dict[str, Any]] = []
@@ -273,6 +338,7 @@ def main() -> None:
                     t0=float(t0),
                     t_end=args.t_end,
                     lstsq_rcond=args.lstsq_rcond,
+                    include_constant_offset=not args.no_constant_offset,
                     max_condition_number=None,
                     max_overtone_to_fund_ratio=None,
                     min_signal_norm=0.0,
@@ -285,21 +351,44 @@ def main() -> None:
             coeff_norm = float(np.linalg.norm(lin.coeffs))
             coeff_to_signal = coeff_norm / h_norm if h_norm > 0 else float("nan")
             svals = lin.singular_values
-            rows.append(
-                {
-                    "t0_M": float(t0),
-                    "mismatch": float(fit_result.mismatch),
-                    "residual_norm": float(fit_result.residual_norm),
-                    "relative_residual_l2": rel_res,
-                    "rank": int(lin.rank),
-                    "condition_number": float(lin.condition_number),
-                    "sigma_max": float(svals[0]) if svals.size else float("nan"),
-                    "sigma_min": float(svals[-1]) if svals.size else float("nan"),
-                    "coeff_l2": coeff_norm,
-                    "coeff_to_signal_l2": float(coeff_to_signal),
-                    "n_samples": int(t_win.size),
-                }
-            )
+            row: dict[str, Any] = {
+                "t0_M": float(t0),
+                "mismatch": float(fit_result.mismatch),
+                "residual_norm": float(fit_result.residual_norm),
+                "relative_residual_l2": rel_res,
+                "rank": int(lin.rank),
+                "condition_number": float(lin.condition_number),
+                "sigma_max": float(svals[0]) if svals.size else float("nan"),
+                "sigma_min": float(svals[-1]) if svals.size else float("nan"),
+                "coeff_l2": coeff_norm,
+                "coeff_to_signal_l2": float(coeff_to_signal),
+                "n_samples": int(t_win.size),
+            }
+
+            if args.diagnostic_constant_b:
+                diag = _fit_with_constant_b(
+                    t=t_win,
+                    h=h_win,
+                    omegas=omegas,
+                    t0=float(t0),
+                    lstsq_rcond=args.lstsq_rcond,
+                )
+                diag_mm = float(diag["mismatch"])
+                row.update(
+                    {
+                        "diag_mismatch_with_b": diag_mm,
+                        "diag_residual_norm_with_b": float(diag["residual_norm"]),
+                        "diag_rank_with_b": int(diag["rank"]),
+                        "diag_condition_number_with_b": float(diag["condition_number"]),
+                        "diag_b_abs": float(diag["b_abs"]),
+                        "diag_b_over_signal_l2": float(diag["b_over_signal_l2"]),
+                        "diag_improvement_factor": (
+                            float(fit_result.mismatch / diag_mm) if diag_mm > 0 else float("inf")
+                        ),
+                    }
+                )
+
+            rows.append(row)
 
         if not rows:
             continue
@@ -321,19 +410,39 @@ def main() -> None:
             else float("nan")
         )
 
-        curve_records.append(
-            {
-                "N": n,
-                "valid_points": int(len(rows)),
-                "best_t0_M": float(t0[best_i]),
-                "best_mismatch": float(mm[best_i]),
-                "mismatch_at_t0_max": float(mm[idx_at_max]),
-                "turnover_ratio": float(mm[idx_at_max] / mm[best_i]),
-                "rank_coverage": float(_rank_coverage(rows, n + 1)),
-                "max_condition_number": float(np.nanmax(cond)),
-                "coeff_growth_t0max_over_t00": float(coeff_growth),
-            }
-        )
+        summary_row: dict[str, Any] = {
+            "N": n,
+            "valid_points": int(len(rows)),
+            "best_t0_M": float(t0[best_i]),
+            "best_mismatch": float(mm[best_i]),
+            "mismatch_at_t0_max": float(mm[idx_at_max]),
+            "turnover_ratio": float(mm[idx_at_max] / mm[best_i]),
+            "rank_coverage": float(
+                _rank_coverage(rows, n + 1 + (0 if args.no_constant_offset else 1))
+            ),
+            "max_condition_number": float(np.nanmax(cond)),
+            "coeff_growth_t0max_over_t00": float(coeff_growth),
+        }
+        if args.diagnostic_constant_b:
+            diag_mm = np.array([r["diag_mismatch_with_b"] for r in rows], dtype=float)
+            diag_b_abs = np.array([r["diag_b_abs"] for r in rows], dtype=float)
+            diag_improve = np.array([r["diag_improvement_factor"] for r in rows], dtype=float)
+            late = t0 >= 20.0
+            summary_row.update(
+                {
+                    "diag_best_mismatch_with_b": float(np.nanmin(diag_mm)),
+                    "diag_mismatch_at_t0_max_with_b": float(diag_mm[idx_at_max]),
+                    "diag_turnover_ratio_with_b": float(
+                        diag_mm[idx_at_max] / np.nanmin(diag_mm) if np.nanmin(diag_mm) > 0 else float("nan")
+                    ),
+                    "diag_median_b_abs": float(np.nanmedian(diag_b_abs)),
+                    "diag_median_improvement_factor_t0_ge20": float(np.nanmedian(diag_improve[late]))
+                    if np.any(late)
+                    else float(np.nanmedian(diag_improve)),
+                }
+            )
+
+        curve_records.append(summary_row)
 
     if not curve_records:
         raise RuntimeError("No valid fits produced; check waveform and scan config.")
@@ -362,6 +471,7 @@ def main() -> None:
             t0=t0,
             t_end=args.t_end,
             lstsq_rcond=args.lstsq_rcond,
+            include_constant_offset=not args.no_constant_offset,
             max_condition_number=None,
             max_overtone_to_fund_ratio=None,
             min_signal_norm=0.0,
@@ -447,6 +557,22 @@ def main() -> None:
         }
     )
 
+    if args.diagnostic_constant_b:
+        improve_values = [
+            float(c.get("diag_median_improvement_factor_t0_ge20", float("nan"))) for c in curve_records
+        ]
+        max_improve = float(np.nanmax(np.asarray(improve_values, dtype=float)))
+        verdicts.append(
+            {
+                "name": "Diagnostic constant-b",
+                "status": "WARN" if max_improve > 10.0 else "PASS",
+                "message": (
+                    f"max median improvement(>=20M)={max_improve:.2e}; "
+                    "large improvement suggests unresolved constant bias."
+                ),
+            }
+        )
+
     if reference_rows:
         min_floor_ratio = min(float(r["best_mm_over_floor_mm"]) for r in reference_rows)
         verdicts.append(
@@ -470,6 +596,9 @@ def main() -> None:
             "t_end": args.t_end,
             "n_max": args.n_max,
             "lstsq_rcond": args.lstsq_rcond,
+            "include_constant_offset": bool(not args.no_constant_offset),
+            "diagnostic_constant_b": bool(args.diagnostic_constant_b),
+            "plot_only_diagnostic_constant_b": bool(args.plot_only_diagnostic_constant_b),
             "thresholds": asdict(thresholds),
         },
         "step1_window_contract": {
@@ -509,7 +638,14 @@ def main() -> None:
         t0 = np.array([r["t0_M"] for r in rows], dtype=float)
         mm = np.array([r["mismatch"] for r in rows], dtype=float)
         cond = np.array([r["condition_number"] for r in rows], dtype=float)
-        axes[0].semilogy(t0, mm, label=f"N={n}")
+        if args.diagnostic_constant_b and args.plot_only_diagnostic_constant_b:
+            mm_b = np.array([r["diag_mismatch_with_b"] for r in rows], dtype=float)
+            axes[0].semilogy(t0, mm_b, label=f"N={n} (+b)")
+        else:
+            axes[0].semilogy(t0, mm, label=f"N={n}")
+            if args.diagnostic_constant_b:
+                mm_b = np.array([r["diag_mismatch_with_b"] for r in rows], dtype=float)
+                axes[0].semilogy(t0, mm_b, ls="--", alpha=0.8, label=f"N={n} (+b)")
         axes[1].semilogy(t0, cond, label=f"N={n}")
 
     axes[0].set_ylabel("Mismatch")

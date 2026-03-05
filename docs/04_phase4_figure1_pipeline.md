@@ -49,6 +49,8 @@ python scripts/phase4_figure1_mismatch_vs_t0.py `
 
 - Script aligns waveform to peak strain (`t_peak -> 0`), then scans `t0` in `[-25M, 60M]` by default.
 - For SXS input, `mf` and `chif` default to metadata remnant values.
-- Defaults now follow the paper fitting setup (no extra numerical guards).
+- Default fitting now includes a complex constant-offset term `b` to absorb baseline drift.
+- Use `--no-constant-offset` to recover the original pure-QNM basis.
+- Defaults keep no extra numerical guards enabled.
 - `--use-stability-guards` re-enables guard filters from stability audits if needed.
 - With `--no-download`, loader first tries local `~/.sxs/cache` files to avoid catalog/network failures.

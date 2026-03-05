@@ -86,6 +86,7 @@ def run_single_sim(
     mf_points: int,
     chif_points: int,
     lstsq_rcond: float,
+    include_constant_offset: bool,
     max_condition_number: float | None,
     max_overtone_ratio: float | None,
     min_signal_norm: float,
@@ -130,6 +131,7 @@ def run_single_sim(
                 omega_provider=omega_provider,
                 t_end=t_end,
                 lstsq_rcond=lstsq_rcond,
+                include_constant_offset=include_constant_offset,
                 max_condition_number=max_condition_number,
                 max_overtone_to_fund_ratio=max_overtone_ratio,
                 min_signal_norm=min_signal_norm,
@@ -205,6 +207,11 @@ def main() -> None:
     parser.add_argument("--chif-points", type=int, default=41)
 
     parser.add_argument("--lstsq-rcond", type=float, default=1e-12)
+    parser.add_argument(
+        "--no-constant-offset",
+        action="store_true",
+        help="Disable default complex constant-offset basis term b in fitting.",
+    )
     parser.add_argument("--max-condition-number", type=float, default=1e12)
     parser.add_argument("--max-overtone-ratio", type=float, default=1e4)
     parser.add_argument("--min-signal-norm", type=float, default=1e-14)
@@ -251,6 +258,7 @@ def main() -> None:
                 mf_points=args.mf_points,
                 chif_points=args.chif_points,
                 lstsq_rcond=args.lstsq_rcond,
+                include_constant_offset=not args.no_constant_offset,
                 max_condition_number=args.max_condition_number,
                 max_overtone_ratio=args.max_overtone_ratio,
                 min_signal_norm=args.min_signal_norm,
@@ -267,6 +275,7 @@ def main() -> None:
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.output_csv, index=False)
     print(f"rows={len(df)} csv={args.output_csv}")
+    print(f"include_constant_offset={not args.no_constant_offset}")
 
     if failures:
         fail_csv = args.output_csv.with_name(args.output_csv.stem + "_failures.csv")

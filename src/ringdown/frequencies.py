@@ -33,11 +33,13 @@ def kerr_qnm_omega_lmn(
     if chif >= 0:
         mode = _cached_mode_function(s=s, ell=ell, m=m, n=n)
         w_bar, _, _ = mode(a=chif)
+        # qnm 返回 Mf*omega；这里除以 mf 得到以总质量 M 为单位的 omega。
         return complex(w_bar) / mf
 
     # Kerr symmetry for negative spin:
     # omega_{lmn}(a, m) = -conj(omega_{l,-m,n}(-a))
     # Here qnm returns dimensionless M_f * omega.
+    # 负自旋使用对称关系，避免在 a<0 区域直接插值导致的数值不稳。
     mode_neg_m = _cached_mode_function(s=s, ell=ell, m=-m, n=n)
     w_bar_neg_m, _, _ = mode_neg_m(a=abs(chif))
     return -np.conjugate(complex(w_bar_neg_m)) / mf

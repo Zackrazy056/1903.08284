@@ -12,8 +12,10 @@ from ringdown.compare import (
     phase_align_to_reference_at_tref,
     window_waveform,
 )
+from ringdown.fit import build_design_matrix
 from ringdown.frequencies import kerr_qnm_omegas_22n
 from ringdown.io import load_waveform_csv, load_waveform_npz
+from ringdown.metrics import mismatch
 from ringdown.preprocess import align_to_peak
 from ringdown.scan import fit_at_start_time
 from ringdown.sxs_io import SXSRemnantInfo, load_sxs_waveform22
@@ -52,6 +54,42 @@ def try_load_reference(
     return wf_ref, info_ref
 
 
+def fit_with_constant_b(
+    t: np.ndarray,
+    h: np.ndarray,
+    omegas: np.ndarray,
+    t0: float,
+    *,
+    lstsq_rcond: float | None,
+) -> dict[str, float | np.ndarray]:
+    """
+    Diagnostic fit: h(t) = sum_n C_n exp(-i omega_n (t-t0)) + b.
+    """
+    a_base = build_design_matrix(t=t, omegas=omegas, t0=t0)
+    a = np.column_stack([a_base, np.ones((t.size, 1), dtype=complex)])
+    coeffs, residuals, rank, svals = np.linalg.lstsq(a, h, rcond=lstsq_rcond)
+    model = a @ coeffs
+    b = complex(coeffs[-1])
+    mm = mismatch(h_nr=h, h_model=model, t=t)
+    if residuals.size > 0:
+        residual_norm = float(np.sqrt(np.real(residuals[0])))
+    else:
+        residual_norm = float(np.linalg.norm(h - model))
+    if svals.size == 0 or svals[-1] <= 0:
+        cond = float("inf")
+    else:
+        cond = float(np.abs(svals[0] / svals[-1]))
+    return {
+        "model": model,
+        "mismatch": float(mm),
+        "residual_norm": residual_norm,
+        "rank": int(rank),
+        "condition_number": cond,
+        "b": b,
+        "b_abs": float(np.abs(b)),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-format", choices=["csv", "npz", "sxs"], default="sxs")
@@ -64,6 +102,17 @@ def main() -> None:
     parser.add_argument("--n-overtones", type=int, default=7)
     parser.add_argument("--t0", type=float, default=0.0)
     parser.add_argument("--t-end", type=float, default=90.0)
+    parser.add_argument("--lstsq-rcond", type=float, default=None)
+    parser.add_argument(
+        "--no-constant-offset",
+        action="store_true",
+        help="Disable default complex constant-offset basis term b in baseline fit.",
+    )
+    parser.add_argument(
+        "--diagnostic-constant-b",
+        action="store_true",
+        help="Enable diagnostic branch: include complex constant offset b in model basis.",
+    )
     parser.add_argument(
         "--ref-align-mode",
         choices=["point_phase", "window_time_phase"],
@@ -91,12 +140,35 @@ def main() -> None:
 
     omegas = kerr_qnm_omegas_22n(mf=mf, chif=chif, n_max=args.n_overtones)
     fit_result, lin_result = fit_at_start_time(
-        wf=wf, omegas=omegas, t0=args.t0, t_end=args.t_end
+        wf=wf,
+        omegas=omegas,
+        t0=args.t0,
+        t_end=args.t_end,
+        lstsq_rcond=args.lstsq_rcond,
+        include_constant_offset=not args.no_constant_offset,
+        max_condition_number=None,
+        max_overtone_to_fund_ratio=None,
+        min_signal_norm=0.0,
     )
 
     t_win, h_win = window_waveform(wf=wf, t0=args.t0, t_end=args.t_end)
-    h_model = lin_result.model
-    residual = np.abs(h_win - h_model)
+    h_model_base = lin_result.model
+    residual_base = np.abs(h_win - h_model_base)
+
+    diag_fit = None
+    if args.diagnostic_constant_b:
+        diag_fit = fit_with_constant_b(
+            t=t_win,
+            h=h_win,
+            omegas=omegas,
+            t0=args.t0,
+            lstsq_rcond=args.lstsq_rcond,
+        )
+        h_model_plot = np.asarray(diag_fit["model"])
+        residual_plot = np.abs(h_win - h_model_plot)
+    else:
+        h_model_plot = h_model_base
+        residual_plot = residual_base
 
     wf_ref_raw, _ = try_load_reference(args)
     ref_t = None
@@ -146,13 +218,31 @@ def main() -> None:
         2, 1, figsize=(9, 7), sharex=True, gridspec_kw={"height_ratios": [2, 1]}
     )
     axes[0].plot(t_win, h_win.real, label=r"$h_{22}^{\mathrm{NR}}$ (Re)", lw=1.6)
-    axes[0].plot(t_win, h_model.real, label=rf"$h_{{22}}^{{N={args.n_overtones}}}$ (Re)", lw=1.2)
+    model_label = (
+        rf"$h_{{22}}^{{N={args.n_overtones}}}+b$ (Re)"
+        if args.diagnostic_constant_b
+        else rf"$h_{{22}}^{{N={args.n_overtones}}}$ (Re)"
+    )
+    axes[0].plot(t_win, h_model_plot.real, label=model_label, lw=1.2)
     axes[0].set_ylabel("Strain")
     axes[0].legend(loc="best", fontsize=9)
     axes[0].grid(True, alpha=0.2)
 
     eps = 1e-16
-    axes[1].semilogy(t_win, np.maximum(residual, eps), label=r"$|h_{22}^{\mathrm{NR}}-h_{22}^{\mathrm{model}}|$")
+    residual_label = (
+        r"$|h_{22}^{\mathrm{NR}}-h_{22}^{\mathrm{model}+b}|$"
+        if args.diagnostic_constant_b
+        else r"$|h_{22}^{\mathrm{NR}}-h_{22}^{\mathrm{model}}|$"
+    )
+    axes[1].semilogy(t_win, np.maximum(residual_plot, eps), label=residual_label)
+    if args.diagnostic_constant_b:
+        axes[1].semilogy(
+            t_win,
+            np.maximum(residual_base, eps),
+            ls="--",
+            alpha=0.8,
+            label=r"$|h_{22}^{\mathrm{NR}}-h_{22}^{\mathrm{baseline}}|$",
+        )
     if ref_t is not None and ref_residual is not None:
         axes[1].semilogy(
             ref_t,
@@ -176,12 +266,24 @@ def main() -> None:
     print(f"t_peak_original={t_peak_original:.6f}")
     print(f"mf={mf:.9f}, chif={chif:.9f}")
     print(f"n_overtones={args.n_overtones}")
-    print(f"fit_mismatch={fit_result.mismatch:.6e}")
-    print(f"fit_residual_norm={fit_result.residual_norm:.6e}")
+    print(f"include_constant_offset={not args.no_constant_offset}")
+    print(f"fit_mismatch_base={fit_result.mismatch:.6e}")
+    print(f"fit_residual_norm_base={fit_result.residual_norm:.6e}")
     print(
-        "model_residual_stats="
-        f"(min={residual.min():.6e}, median={np.median(residual):.6e}, max={residual.max():.6e})"
+        "model_residual_stats_base="
+        f"(min={residual_base.min():.6e}, median={np.median(residual_base):.6e}, max={residual_base.max():.6e})"
     )
+    if diag_fit is not None:
+        fit_mismatch_diag = float(diag_fit["mismatch"])
+        print(f"fit_mismatch_with_b={fit_mismatch_diag:.6e}")
+        print(f"fit_residual_norm_with_b={float(diag_fit['residual_norm']):.6e}")
+        print(f"diagnostic_b_abs={float(diag_fit['b_abs']):.6e}")
+        print(
+            "model_residual_stats_with_b="
+            f"(min={residual_plot.min():.6e}, median={np.median(residual_plot):.6e}, max={residual_plot.max():.6e})"
+        )
+        if fit_mismatch_diag > 0:
+            print(f"diagnostic_improvement_factor={fit_result.mismatch/fit_mismatch_diag:.6e}")
     if ref_residual is not None and ref_residual.size > 0:
         print(
             "nr_error_proxy_stats="
