@@ -13,6 +13,7 @@ from ringdown.fd_likelihood import (
     continuous_ft_from_time_series,
     draw_colored_noise_rfft,
     optimal_snr,
+    real_ringdown_mode_tilde,
 )
 from ringdown.frequencies import kerr_qnm_omegas_22n
 from ringdown.sxs_io import load_sxs_waveform22
@@ -89,6 +90,7 @@ class RingdownPosterior:
         freqs_hz: np.ndarray,
         d_tilde: np.ndarray,
         psd: np.ndarray,
+        duration_sec: float,
         h_peak: float,
         n_overtones: int,
         m_total_msun: float,
@@ -103,6 +105,7 @@ class RingdownPosterior:
         self.ndim = 2 + 2 * self.n_modes
         self.m_total_msun = float(m_total_msun)
         self.m_sec = MSUN_SEC * self.m_total_msun
+        self.duration_sec = float(duration_sec)
         self.h_peak = float(h_peak)
         self.mf_bounds = mf_bounds
         self.chif_bounds = chif_bounds
@@ -174,10 +177,13 @@ class RingdownPosterior:
             omegas_m[k] = (wr + 1j * wi) / mf_frac
         omegas_rad_s = omegas_m / self.m_sec
 
-        c_n = amps * np.exp(-1j * phis)
-        freq_diff = 2.0 * np.pi * self.f_calc[None, :] - omegas_rad_s[:, None]
-        h_modes = (1j * c_n[:, None]) / freq_diff
-        h_tilde = np.sum(h_modes, axis=0)
+        h_tilde = real_ringdown_mode_tilde(
+            self.f_calc,
+            omegas_rad_s,
+            amps,
+            phis,
+            duration_sec=self.duration_sec,
+        )
         # PSD 加权高斯似然：lnL = <d,h> - 1/2<h,h>。
         d_h = 4.0 * self.df * np.sum(np.real(self.d_weighted * np.conjugate(h_tilde)))
         h_h = 4.0 * self.df * np.sum((np.abs(h_tilde) ** 2) / self.psd_calc)
@@ -324,6 +330,7 @@ def main() -> None:
             freqs_hz=freqs,
             d_tilde=d_tilde,
             psd=psd,
+            duration_sec=float(tau_u_sec[-1]),
             h_peak=h_peak,
             n_overtones=n,
             m_total_msun=args.m_total_msun,

@@ -134,6 +134,68 @@ def draw_colored_noise_rfft(
     return noise
 
 
+def complex_ringdown_mode_tilde(
+    freqs_hz: np.ndarray,
+    omegas_rad_s: np.ndarray,
+    amplitudes: np.ndarray,
+    phases: np.ndarray,
+    *,
+    duration_sec: float,
+    t0_sec: float = 0.0,
+    include_finite_duration: bool = True,
+) -> np.ndarray:
+    """Analytic positive-frequency FT for a complex damped ringdown sum."""
+    if freqs_hz.ndim != 1 or omegas_rad_s.ndim != 1 or amplitudes.ndim != 1 or phases.ndim != 1:
+        raise ValueError("freqs_hz, omegas_rad_s, amplitudes, phases must be 1D")
+    if not (omegas_rad_s.size == amplitudes.size == phases.size):
+        raise ValueError("mode arrays must have identical size")
+    if include_finite_duration and duration_sec <= 0.0:
+        raise ValueError("duration_sec must be positive when finite-duration windowing is enabled")
+
+    c_n = amplitudes * np.exp(-1j * phases)
+    delta = (2.0 * np.pi * freqs_hz)[None, :] + omegas_rad_s[:, None]
+    if include_finite_duration:
+        win = 1.0 - np.exp(-1j * delta * duration_sec)
+    else:
+        win = 1.0
+    phase_shift = np.exp(-2j * np.pi * freqs_hz * t0_sec)
+    h_modes = (-1j * c_n[:, None] * win) / delta
+    return phase_shift * np.sum(h_modes, axis=0)
+
+
+def real_ringdown_mode_tilde(
+    freqs_hz: np.ndarray,
+    omegas_rad_s: np.ndarray,
+    amplitudes: np.ndarray,
+    phases: np.ndarray,
+    *,
+    duration_sec: float,
+    t0_sec: float = 0.0,
+    include_finite_duration: bool = True,
+) -> np.ndarray:
+    """Analytic positive-frequency FT for a real detector-like ringdown channel."""
+    if freqs_hz.ndim != 1 or omegas_rad_s.ndim != 1 or amplitudes.ndim != 1 or phases.ndim != 1:
+        raise ValueError("freqs_hz, omegas_rad_s, amplitudes, phases must be 1D")
+    if not (omegas_rad_s.size == amplitudes.size == phases.size):
+        raise ValueError("mode arrays must have identical size")
+    if include_finite_duration and duration_sec <= 0.0:
+        raise ValueError("duration_sec must be positive when finite-duration windowing is enabled")
+
+    c_n = amplitudes * np.exp(-1j * phases)
+    delta_pos = (2.0 * np.pi * freqs_hz)[None, :] + omegas_rad_s[:, None]
+    delta_neg = (2.0 * np.pi * freqs_hz)[None, :] - np.conjugate(omegas_rad_s)[:, None]
+    if include_finite_duration:
+        win_pos = 1.0 - np.exp(-1j * delta_pos * duration_sec)
+        win_neg = 1.0 - np.exp(-1j * delta_neg * duration_sec)
+    else:
+        win_pos = 1.0
+        win_neg = 1.0
+    phase_shift = np.exp(-2j * np.pi * freqs_hz * t0_sec)
+    positive_branch = (-0.5j * c_n[:, None] * win_pos) / delta_pos
+    negative_branch = (-0.5j * np.conjugate(c_n)[:, None] * win_neg) / delta_neg
+    return phase_shift * np.sum(positive_branch + negative_branch, axis=0)
+
+
 @dataclass(frozen=True)
 class FrequencyDomainRingdownLikelihood:
     freqs_hz: np.ndarray
@@ -195,23 +257,15 @@ class FrequencyDomainRingdownLikelihood:
         return self._dd_const
 
     def model_tilde(self, omegas_rad_s: np.ndarray, amplitudes: np.ndarray, phases: np.ndarray) -> np.ndarray:
-        if omegas_rad_s.ndim != 1 or amplitudes.ndim != 1 or phases.ndim != 1:
-            raise ValueError("omegas_rad_s, amplitudes, phases must be 1D")
-        if not (omegas_rad_s.size == amplitudes.size == phases.size):
-            raise ValueError("mode arrays must have identical size")
-
-        # C_n = A_n * exp(-i phi_n)，是每个泛音在 t=t0 的复激发系数。
-        c_n = amplitudes * np.exp(-1j * phases)
-        delta = (2.0 * np.pi * self._f_calc)[None, :] + omegas_rad_s[:, None]
-
-        if self.include_finite_duration:
-            # 有限时窗修正：对 [t0, t0+T] 截断信号的解析频域表达。
-            win = 1.0 - np.exp(-1j * delta * self.duration_sec)
-        else:
-            win = 1.0
-
-        h_modes = (-1j * c_n[:, None] * win) / delta
-        return self._phase_shift * np.sum(h_modes, axis=0)
+        return complex_ringdown_mode_tilde(
+            self._f_calc,
+            omegas_rad_s,
+            amplitudes,
+            phases,
+            duration_sec=self.duration_sec,
+            t0_sec=self.t0_sec,
+            include_finite_duration=self.include_finite_duration,
+        )
 
     def log_likelihood(self, omegas_rad_s: np.ndarray, amplitudes: np.ndarray, phases: np.ndarray) -> float:
         h_tilde = self.model_tilde(omegas_rad_s, amplitudes, phases)
