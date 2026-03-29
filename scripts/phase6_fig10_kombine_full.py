@@ -1,3 +1,10 @@
+"""Legacy Fig.10 diagnostic script.
+
+This file predates the shared paper-faithful forward model and still uses
+older injection scaling / prior conventions. Do not mix its outputs with the
+shared-forward Fig.10 results without revalidation.
+"""
+
 from __future__ import annotations
 
 import argparse

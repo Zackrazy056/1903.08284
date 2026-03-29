@@ -30,6 +30,33 @@ class RemnantGridResult:
     valid_mask: np.ndarray
 
 
+@dataclass(frozen=True)
+class NumericalGuardrails:
+    """
+    Purely numerical fit guardrails.
+
+    These checks protect the linear solve from empty/near-empty windows or
+    catastrophically ill-conditioned design matrices without imposing any
+    additional physics prior on the recovered QNM amplitudes.
+    """
+
+    max_condition_number: float | None = 1e12
+    min_signal_norm: float = 1e-14
+
+
+@dataclass(frozen=True)
+class PhysicsHeuristics:
+    """
+    Optional exploratory heuristics that prune numerically valid but physically
+    implausible solutions.
+
+    Keep these disabled for posterior geometry / paper-faithful scans unless
+    they are being studied explicitly.
+    """
+
+    max_overtone_to_fund_ratio: float | None = None
+
+
 def _window_waveform(
     wf: Waveform22, t0: float, t_end: float | None
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -63,17 +90,37 @@ def fit_at_start_time(
     t0: float,
     t_end: float | None = None,
     *,
+    numerical_guardrails: NumericalGuardrails | None = None,
+    physics_heuristics: PhysicsHeuristics | None = None,
     lstsq_rcond: float = 1e-12,
     include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
-    max_overtone_to_fund_ratio: float | None = 1e4,
+    max_overtone_to_fund_ratio: float | None = None,
     min_signal_norm: float = 1e-14,
 ) -> tuple[StartTimeFitResult, LinearFitResult]:
+    """
+    Fit fixed-frequency QNM amplitudes in a time window beginning at ``t0``.
+
+    ``numerical_guardrails`` and ``physics_heuristics`` are the preferred
+    configuration knobs. The scalar threshold arguments are retained as a
+    backwards-compatible shorthand and are used only when the corresponding
+    dataclass is not supplied.
+    """
+    if numerical_guardrails is None:
+        numerical_guardrails = NumericalGuardrails(
+            max_condition_number=max_condition_number,
+            min_signal_norm=min_signal_norm,
+        )
+    if physics_heuristics is None:
+        physics_heuristics = PhysicsHeuristics(
+            max_overtone_to_fund_ratio=max_overtone_to_fund_ratio,
+        )
+
     t_win, h_win = _window_waveform(wf, t0=t0, t_end=t_end)
     if t_win.size <= omegas.size:
         raise ValueError("insufficient samples in fitting window")
     signal_norm = float(np.trapezoid(np.abs(h_win) ** 2, t_win))
-    if signal_norm <= min_signal_norm:
+    if signal_norm <= numerical_guardrails.min_signal_norm:
         raise ValueError("signal norm too small in fitting window")
 
     lin = solve_complex_lstsq(
@@ -84,10 +131,17 @@ def fit_at_start_time(
         lstsq_rcond=lstsq_rcond,
         include_constant_offset=include_constant_offset,
     )
-    if max_condition_number is not None and lin.condition_number > max_condition_number:
+    if (
+        numerical_guardrails.max_condition_number is not None
+        and lin.condition_number > numerical_guardrails.max_condition_number
+    ):
         raise ValueError("design matrix ill-conditioned")
-    if max_overtone_to_fund_ratio is not None and _relative_overtone_amplitude_excess(
-        lin.coeffs, max_overtone_to_fund_ratio=max_overtone_to_fund_ratio
+    if (
+        physics_heuristics.max_overtone_to_fund_ratio is not None
+        and _relative_overtone_amplitude_excess(
+            lin.coeffs,
+            max_overtone_to_fund_ratio=physics_heuristics.max_overtone_to_fund_ratio,
+        )
     ):
         raise ValueError("overtone amplitudes are unphysical at this t0")
 
@@ -111,10 +165,12 @@ def scan_start_times_fixed_omegas(
     t0_grid: np.ndarray,
     t_end: float | None = None,
     *,
+    numerical_guardrails: NumericalGuardrails | None = None,
+    physics_heuristics: PhysicsHeuristics | None = None,
     lstsq_rcond: float = 1e-12,
     include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
-    max_overtone_to_fund_ratio: float | None = 1e4,
+    max_overtone_to_fund_ratio: float | None = None,
     min_signal_norm: float = 1e-14,
 ) -> list[StartTimeFitResult]:
     results: list[StartTimeFitResult] = []
@@ -128,6 +184,8 @@ def scan_start_times_fixed_omegas(
                 omegas=omegas,
                 t0=float(t0),
                 t_end=t_end,
+                numerical_guardrails=numerical_guardrails,
+                physics_heuristics=physics_heuristics,
                 lstsq_rcond=lstsq_rcond,
                 include_constant_offset=include_constant_offset,
                 max_condition_number=max_condition_number,
@@ -149,10 +207,12 @@ def grid_search_remnant(
     omega_provider: Callable[[float, float, int], np.ndarray],
     t_end: float | None = None,
     *,
+    numerical_guardrails: NumericalGuardrails | None = None,
+    physics_heuristics: PhysicsHeuristics | None = None,
     lstsq_rcond: float = 1e-12,
     include_constant_offset: bool = True,
     max_condition_number: float | None = 1e12,
-    max_overtone_to_fund_ratio: float | None = 1e4,
+    max_overtone_to_fund_ratio: float | None = None,
     min_signal_norm: float = 1e-14,
 ) -> RemnantGridResult:
     """
@@ -178,6 +238,8 @@ def grid_search_remnant(
                     omegas=omegas,
                     t0=t0,
                     t_end=t_end,
+                    numerical_guardrails=numerical_guardrails,
+                    physics_heuristics=physics_heuristics,
                     lstsq_rcond=lstsq_rcond,
                     include_constant_offset=include_constant_offset,
                     max_condition_number=max_condition_number,

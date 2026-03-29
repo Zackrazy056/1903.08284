@@ -28,11 +28,27 @@ def mismatch(h_nr: np.ndarray, h_model: np.ndarray, t: np.ndarray) -> float:
 
 
 def remnant_error_epsilon(
-    mf_fit: float, mf_true: float, chi_fit: float, chi_true: float, total_mass: float
+    mf_fit: float,
+    mf_true: float,
+    chi_fit: float,
+    chi_true: float,
+    mass_scale_msun: float | None = None,
+    *,
+    total_mass: float | None = None,
 ) -> float:
-    """Compute epsilon = sqrt((delta Mf / M)^2 + (delta chi)^2)."""
-    if total_mass <= 0:
-        raise ValueError("total_mass must be positive")
+    """
+    Compute epsilon = sqrt((delta Mf / M)^2 + (delta chi)^2).
+
+    The preferred argument name is ``mass_scale_msun`` to make the normalization
+    explicit. For the current paper-faithful convention this mass scale is the
+    initial total binary mass ``M`` from Eq.(4), not the remnant mass.
+
+    ``total_mass`` is retained as a backwards-compatible alias.
+    """
+    if mass_scale_msun is None:
+        mass_scale_msun = total_mass
+    if mass_scale_msun is None or mass_scale_msun <= 0:
+        raise ValueError("mass_scale_msun must be positive")
     dmf = mf_fit - mf_true
     dchi = chi_fit - chi_true
-    return float(np.sqrt((dmf / total_mass) ** 2 + dchi**2))
+    return float(np.sqrt((dmf / mass_scale_msun) ** 2 + dchi**2))

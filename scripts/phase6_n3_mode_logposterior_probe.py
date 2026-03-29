@@ -1,3 +1,9 @@
+"""Legacy N=3 posterior-probe diagnostic.
+
+This script predates the shared paper-faithful forward model and should not be
+mixed with the current Fig.10 baseline without migration.
+"""
+
 from __future__ import annotations
 
 import argparse

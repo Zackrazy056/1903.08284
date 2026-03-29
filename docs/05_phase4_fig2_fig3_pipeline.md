@@ -1,9 +1,9 @@
-# Phase 4 (Part 2): Figure 2 and Figure 3 Pipelines
+# Phase 4 (Part 2): Figure 2 and Exploratory Landscape Pipelines
 
 This batch adds:
 
 - waveform + residual plot at `t0=t_peak` (paper Fig. 2 style),
-- mismatch landscape in `(M_f, chi_f)` (paper Fig. 4/5/6 style core diagnostic).
+- exploratory mismatch landscapes in `(M_f, chi_f)` related to paper Fig. 4/5/6.
 
 ## New Utilities
 
@@ -22,9 +22,10 @@ This batch adds:
 
 - `scripts/phase4_figure3_mf_chif_landscape.py`
   - performs grid search in `(M_f, chi_f)`,
-  - plots `log10(mismatch)` contour map,
+  - plots `log10(mismatch)` contour maps,
   - marks best-fit point and NR remnant point,
-  - default baseline fit includes a complex constant-offset term `b`.
+  - default baseline fit includes a complex constant-offset term `b`,
+  - is best treated as an exploratory landscape tool rather than the final paper-faithful `Fig. 4/5/6` renderer.
 
 ## Reproduction Commands
 
@@ -52,7 +53,7 @@ python scripts/phase4_figure2_waveform_residual.py `
   --output results/figure2_sxs0305_n7_t0peak_no_offset.png
 ```
 
-### Fig. 3-style landscape contrast (`N=0` vs `N=7`)
+### Exploratory landscape contrast (`N=0` vs `N=7`)
 
 ```powershell
 $env:PYTHONPATH="src"
@@ -65,16 +66,18 @@ python scripts/phase4_figure3_mf_chif_landscape.py `
 ```
 
 Notes:
-- `--n-overtones-list 0,7` draws shared-colorbar side-by-side panels for direct paper-style comparison.
-- Default fit includes constant offset `b`; add `--no-constant-offset` for pure-QNM strict branch.
 
-## Current Numeric Snapshot (SXS:BBH:0305)
+- `--n-overtones-list 0,7` draws shared-colorbar side-by-side panels for quick comparison.
+- Default fit includes constant offset `b`; add `--no-constant-offset` for the pure-QNM branch.
+- The dedicated paper-faithful `Fig. 4/5/6` reproduction now lives in `scripts/phase4_fig456_paper_style.py`.
+
+## Current Numeric Snapshot (Exploratory)
 
 - `N=0, t0=0`:
   - best `(M_f, chi_f) = (1.00203294, 0.572085187)`,
   - `epsilon ≈ 1.3e-1` (strong bias).
 - `N=7, t0=0`:
   - best `(M_f, chi_f) = (0.95203294, 0.692085187)`,
-  - `epsilon ≈ 1.1e-16` (recovers NR remnant on grid).
+  - `epsilon ≈ 1.1e-16` (recovers the NR remnant on the chosen grid).
 
-This reproduces the paper’s central overtone conclusion at the diagnostic level.
+This exploratory script reproduces the overtone diagnostic qualitatively, but the final paper-style `Fig. 4/5/6` outputs should be taken from the dedicated strict script documented separately.

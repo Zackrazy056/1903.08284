@@ -9,19 +9,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dynesty.utils import resample_equal
 
-from ringdown.fd_likelihood import (
-    FrequencyDomainRingdownLikelihood,
-    aligo_zero_det_high_power_psd,
-    continuous_ft_from_time_series,
-    draw_colored_noise_rfft,
-    optimal_snr,
-)
+from ringdown.fd_likelihood import FrequencyDomainRingdownLikelihood
 from ringdown.frequencies import kerr_qnm_omega_lmn
-from ringdown.preprocess import align_to_peak
-from ringdown.sxs_io import load_sxs_waveform22
+from ringdown.paper_fig10 import (
+    MSUN_SEC,
+    PaperFigure10Config,
+    PaperFigure10Priors,
+    build_paper_fig10_signal,
+    inject_paper_fig10_noise,
+    paper_fig10_signal_diagnostics,
+)
 
 
-MSUN_SEC = 4.92549095e-6
 AMP_PRIOR_MIN_REL = 0.01
 AMP_PRIOR_MAX_REL = 250.0
 
@@ -33,53 +32,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-values", type=str, default="0,1,2,3")
     parser.add_argument("--m-total-msun", type=float, default=72.0)
     parser.add_argument("--distance-mpc", type=float, default=400.0)
-    parser.add_argument("--target-hpeak", type=float, default=2e-21)
-    parser.add_argument("--target-snr-postpeak", type=float, default=42.3)
-    parser.add_argument(
-        "--likelihood-domain",
-        choices=["frequency", "time"],
-        default="frequency",
-        help="Use PSD-weighted frequency-domain likelihood (default) or legacy time-domain white-noise likelihood.",
-    )
-    parser.add_argument(
-        "--psd-model",
-        choices=["aligo_design", "flat"],
-        default="aligo_design",
-        help="PSD model for frequency-domain injection/likelihood.",
-    )
-    parser.add_argument("--f-min-hz", type=float, default=20.0, help="Minimum frequency for PSD-weighted inner products.")
-    parser.add_argument("--f-max-hz", type=float, default=1024.0, help="Maximum frequency for PSD-weighted inner products.")
-    parser.add_argument(
-        "--fd-grid-df-hz",
-        type=float,
-        default=1.0,
-        help="Frequency spacing for frequency-domain likelihood grid (Hz).",
-    )
-    parser.add_argument(
-        "--disable-psd-snr-rescale",
-        action="store_true",
-        help="Disable amplitude rescaling that enforces target post-peak SNR under PSD-weighted inner product.",
-    )
+    parser.add_argument("--delta-t0-ms", type=float, default=0.0)
+    parser.add_argument("--t-end", type=float, default=90.0)
+    parser.add_argument("--f-min-hz", type=float, default=20.0)
+    parser.add_argument("--f-max-hz", type=float, default=1024.0)
+    parser.add_argument("--df-hz", type=float, default=1.0)
     parser.add_argument(
         "--disable-finite-duration-model",
         action="store_true",
-        help="Use infinite-duration analytic FT i*C/(2*pi*f + omega) instead of finite-window model.",
+        help="Use the infinite-duration analytic Fourier model instead of the finite-window version.",
     )
-    parser.add_argument(
-        "--strain-channel",
-        choices=["complex", "plus"],
-        default="complex",
-        help="Data/likelihood channel: complex h22 or detector-like plus polarization only.",
-    )
-    parser.add_argument(
-        "--t0-reference",
-        choices=["complex_peak", "plus_peak"],
-        default="complex_peak",
-        help="Reference peak used for t0; paper-style setting is complex_peak.",
-    )
-    parser.add_argument("--delta-t0-ms", type=float, default=0.0)
-    parser.add_argument("--t-end", type=float, default=90.0)
-    parser.add_argument("--mf-min-msun", type=float, default=50.0)
+    parser.add_argument("--mf-min-msun", type=float, default=10.0)
     parser.add_argument("--mf-max-msun", type=float, default=100.0)
     parser.add_argument("--chif-min", type=float, default=0.0)
     parser.add_argument("--chif-max", type=float, default=1.0)
@@ -98,32 +61,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dynesty-bootstrap", type=int, default=0)
     parser.add_argument("--dynesty-update-interval", type=float, default=0.6)
     parser.add_argument("--dynesty-dlogz", type=float, default=0.10)
-    parser.add_argument("--dynesty-dlogz-init", type=float, default=0.30, help="DynamicNestedSampler dlogz_init.")
+    parser.add_argument("--dynesty-dlogz-init", type=float, default=0.30)
     parser.add_argument("--dynesty-maxiter", type=int, default=0, help="0 means no explicit maxiter bound.")
     parser.add_argument("--dynesty-maxcall", type=int, default=0, help="0 means no explicit maxcall bound.")
     parser.add_argument("--posterior-ess-target", type=float, default=1000.0)
     parser.add_argument("--seed", type=int, default=12345)
 
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("results/fig10_reproduction_dynesty.png"),
-    )
-    parser.add_argument(
-        "--trace-output",
-        type=Path,
-        default=Path("results/fig10_reproduction_dynesty_traces.png"),
-    )
-    parser.add_argument(
-        "--trace-all-prefix",
-        type=Path,
-        default=Path("results/fig10_reproduction_dynesty_trace_all.png"),
-    )
-    parser.add_argument(
-        "--diag-csv",
-        type=Path,
-        default=Path("results/fig10_reproduction_dynesty_diagnostics.csv"),
-    )
+    parser.add_argument("--output", type=Path, default=Path("results/fig10_reproduction_dynesty.png"))
+    parser.add_argument("--trace-output", type=Path, default=Path("results/fig10_reproduction_dynesty_traces.png"))
+    parser.add_argument("--trace-all-prefix", type=Path, default=Path("results/fig10_reproduction_dynesty_trace_all.png"))
+    parser.add_argument("--diag-csv", type=Path, default=Path("results/fig10_reproduction_dynesty_diagnostics.csv"))
     parser.add_argument("--samples-prefix", type=Path, default=None)
     return parser.parse_args()
 
@@ -156,23 +103,11 @@ def credible_level_2d(pdf: np.ndarray, cred: float) -> float:
     return float(flat[order[idx]])
 
 
-def mass_to_ms(total_mass_msun: float) -> float:
-    return MSUN_SEC * total_mass_msun * 1e3
-
-
 def n_tagged_path(base: Path, n: int) -> Path:
     suffix = base.suffix if base.suffix else ".png"
     stem = base.stem if base.suffix else str(base)
     p = Path(stem)
     return base.parent / f"{p.stem}_N{n}{suffix}"
-
-
-def build_psd(freqs_hz: np.ndarray, model: str) -> np.ndarray:
-    if model == "aligo_design":
-        return aligo_zero_det_high_power_psd(freqs_hz, f_low_hz=10.0)
-    if model == "flat":
-        return np.ones_like(freqs_hz, dtype=float)
-    raise ValueError(f"unsupported psd model: {model}")
 
 
 def boundary_hit_fraction(samples: np.ndarray, lo: float, hi: float, eps_frac: float) -> float:
@@ -193,8 +128,8 @@ def main() -> None:
         raise ValueError("--f-min-hz must be >= 0")
     if args.f_max_hz <= args.f_min_hz:
         raise ValueError("--f-max-hz must be > --f-min-hz")
-    if args.fd_grid_df_hz <= 0:
-        raise ValueError("--fd-grid-df-hz must be positive")
+    if args.df_hz <= 0:
+        raise ValueError("--df-hz must be positive")
     if args.boundary_eps_frac <= 0 or args.boundary_eps_frac >= 0.5:
         raise ValueError("--boundary-eps-frac must be in (0, 0.5)")
     if args.dynesty_nlive < 2:
@@ -213,140 +148,49 @@ def main() -> None:
         raise ValueError("--dynesty-dlogz-init must be positive")
     if args.posterior_ess_target <= 0:
         raise ValueError("--posterior-ess-target must be positive")
-    if args.likelihood_domain == "frequency" and args.strain_channel != "complex":
-        raise ValueError("frequency-domain likelihood currently supports only --strain-channel complex")
 
-    wf_raw, info = load_sxs_waveform22(location=args.sxs_location, download=not args.no_download)
-    wf, t_peak_complex_raw = align_to_peak(wf_raw)
-    if info.remnant_mass is None or info.remnant_chif_z is None:
-        raise ValueError("missing remnant mass/spin metadata")
-
-    t_all = wf.t
-    h_complex_raw = wf.h
-    h_plus_raw = h_complex_raw.real
-    idx_peak_complex = int(np.argmax(np.abs(h_complex_raw)))
-    idx_peak_plus = int(np.argmax(np.abs(h_plus_raw)))
-    t_peak_complex_aligned = float(t_all[idx_peak_complex])
-    t_peak_plus_aligned = float(t_all[idx_peak_plus])
-
-    if args.strain_channel == "complex":
-        h_obs_raw: np.ndarray = h_complex_raw
-    else:
-        h_obs_raw = h_plus_raw
-
-    h_peak_raw = float(np.max(np.abs(h_obs_raw)))
-    if h_peak_raw <= 0:
-        raise ValueError("invalid analysis-channel peak")
-    amp_scale_hpeak = float(args.target_hpeak / h_peak_raw)
-    overall_amp_scale = amp_scale_hpeak
-    h_obs = h_obs_raw * overall_amp_scale
-    h_peak = float(np.max(np.abs(h_obs)))
-
-    ms_per_M = mass_to_ms(args.m_total_msun)
-    m_sec = MSUN_SEC * args.m_total_msun
-    delta_t0_M = float(args.delta_t0_ms / ms_per_M)
-    t_peak_ref = t_peak_complex_aligned if args.t0_reference == "complex_peak" else t_peak_plus_aligned
-    t0 = t_peak_ref + delta_t0_M
-
-    mask = (t_all >= t0) & (t_all <= args.t_end)
-    t = t_all[mask]
-    h_sig = h_obs[mask]
-    if t.size < 50:
-        raise ValueError("insufficient samples in analysis window")
-    tau_m = t - t0
-
-    sigma = float("nan")
-    snr_before_rescale = float("nan")
-    snr_achieved = float("nan")
-    snr_rescale_factor = 1.0
-    freq_df_hz = float("nan")
-    freq_n_valid = 0
-    fd_like: FrequencyDomainRingdownLikelihood | None = None
-    data: np.ndarray | None = None
-
-    if args.likelihood_domain == "frequency":
-        dt_m = float(np.median(np.diff(t)))
-        tau_end_m = float(tau_m[-1])
-        tau_u_m = np.arange(0.0, tau_end_m + 0.5 * dt_m, dt_m)
-        if tau_u_m.size < 64:
-            raise ValueError("insufficient uniform samples for frequency-domain likelihood")
-
-        h_u_re = np.interp(tau_u_m, tau_m, h_sig.real)
-        h_u_im = np.interp(tau_u_m, tau_m, h_sig.imag)
-        h_sig_u = h_u_re + 1j * h_u_im
-
-        tau_u_sec = tau_u_m * m_sec
-        freq_df_hz = float(args.fd_grid_df_hz)
-        freqs_hz = np.arange(args.f_min_hz, args.f_max_hz + 0.5 * freq_df_hz, freq_df_hz)
-        if freqs_hz.size < 16:
-            raise ValueError("frequency grid too small; reduce --fd-grid-df-hz or widen frequency range")
-
-        psd_full = build_psd(freqs_hz, args.psd_model)
-        ip_valid = (
-            (freqs_hz >= args.f_min_hz)
-            & (freqs_hz <= args.f_max_hz)
-            & np.isfinite(psd_full)
-            & (psd_full > 0)
-            & (freqs_hz > 0.0)
-        )
-        if np.count_nonzero(ip_valid) < 16:
-            raise ValueError("too few valid frequency bins; relax f-range or PSD settings")
-
-        signal_tilde = continuous_ft_from_time_series(tau_u_sec, h_sig_u, freqs_hz)
-        snr_before_rescale = optimal_snr(signal_tilde, psd_full, freq_df_hz, valid_mask=ip_valid)
-        if (not args.disable_psd_snr_rescale) and snr_before_rescale > 0:
-            snr_rescale_factor = float(args.target_snr_postpeak / snr_before_rescale)
-            overall_amp_scale *= snr_rescale_factor
-            h_obs = h_obs_raw * overall_amp_scale
-            h_peak = float(np.max(np.abs(h_obs)))
-            h_sig = h_obs[mask]
-            h_u_re = np.interp(tau_u_m, tau_m, h_sig.real)
-            h_u_im = np.interp(tau_u_m, tau_m, h_sig.imag)
-            h_sig_u = h_u_re + 1j * h_u_im
-            signal_tilde = continuous_ft_from_time_series(tau_u_sec, h_sig_u, freqs_hz)
-        snr_achieved = optimal_snr(signal_tilde, psd_full, freq_df_hz, valid_mask=ip_valid)
-
-        noise_tilde = draw_colored_noise_rfft(
-            rng,
-            freqs_hz.size,
-            psd_full,
-            freq_df_hz,
-            enforce_real_endpoints=False,
-        )
-        data_tilde = signal_tilde + noise_tilde
-        fd_like = FrequencyDomainRingdownLikelihood(
-            freqs_hz=freqs_hz,
-            d_tilde=data_tilde,
-            psd=psd_full,
-            df=freq_df_hz,
-            duration_sec=float(tau_u_sec[-1]),
-            t0_sec=0.0,
+    priors = PaperFigure10Priors(
+        mf_bounds_msun=(float(args.mf_min_msun), float(args.mf_max_msun)),
+        chif_bounds=(float(args.chif_min), float(args.chif_max)),
+        amp_bounds_rel=(AMP_PRIOR_MIN_REL, AMP_PRIOR_MAX_REL),
+    )
+    signal = build_paper_fig10_signal(
+        PaperFigure10Config(
+            sxs_location=args.sxs_location,
+            total_mass_msun=args.m_total_msun,
+            distance_mpc=args.distance_mpc,
+            delta_t0_ms=args.delta_t0_ms,
+            t_end_m=args.t_end,
             f_min_hz=args.f_min_hz,
             f_max_hz=args.f_max_hz,
-            include_finite_duration=not args.disable_finite_duration_model,
+            df_hz=args.df_hz,
+            priors=priors,
+            download=not args.no_download,
         )
-        freq_n_valid = fd_like.n_valid
-        data = h_sig
-    else:
-        sigma = float(np.linalg.norm(h_sig) / args.target_snr_postpeak)
-        if args.strain_channel == "complex":
-            noise = rng.normal(loc=0.0, scale=sigma / np.sqrt(2.0), size=h_sig.size) + 1j * rng.normal(
-                loc=0.0,
-                scale=sigma / np.sqrt(2.0),
-                size=h_sig.size,
-            )
-        else:
-            noise = rng.normal(loc=0.0, scale=sigma, size=h_sig.size)
-        data = h_sig + noise
-        snr_achieved = float(np.linalg.norm(h_sig) / sigma)
+    )
+    observation = inject_paper_fig10_noise(signal, rng)
 
-    true_mf_msun = float(info.remnant_mass * args.m_total_msun)
-    true_chif = float(info.remnant_chif_z)
-    mf_bounds = (float(args.mf_min_msun), float(args.mf_max_msun))
+    m_sec = MSUN_SEC * args.m_total_msun
+    true_mf_msun = signal.true_mf_msun
+    true_chif = signal.true_chif
+    mf_bounds = priors.mf_bounds_msun
     chif_hi = min(float(args.chif_max), 0.999)
     chif_bounds = (float(args.chif_min), chif_hi)
-    amp_bounds = (AMP_PRIOR_MIN_REL, AMP_PRIOR_MAX_REL)
-    phi_bounds = (0.0, 2.0 * np.pi)
+    amp_bounds = priors.amp_bounds_rel
+    phi_bounds = priors.phi_bounds
+
+    fd_like = FrequencyDomainRingdownLikelihood(
+        freqs_hz=signal.freqs_hz,
+        d_tilde=observation.d_tilde,
+        psd=signal.psd,
+        df=signal.config.df_hz,
+        duration_sec=signal.duration_sec,
+        t0_sec=0.0,
+        f_min_hz=args.f_min_hz,
+        f_max_hz=args.f_max_hz,
+        include_finite_duration=not args.disable_finite_duration_model,
+        channel="real",
+    )
 
     colors = {0: "#1f77b4", 1: "#6f2da8", 2: "#d4a017", 3: "#d62728"}
     linestyles = {0: "-", 1: "--", 2: "--", 3: "-"}
@@ -362,7 +206,11 @@ def main() -> None:
     trace_by_n: dict[int, np.ndarray] = {}
 
     diag_rows: list[str] = [
-        "N,ndim,dynesty_mode,nlive,nlive_init,nlive_batch,maxbatch,niter,ncall_total,eff_percent,logz,logzerr,dlogz_target,dlogz_init_target,converged,posterior_ess_kish,posterior_ess_target,boundary_mf_frac,boundary_chif_frac,boundary_amp_frac,map_mf_msun,map_chif,mf_q16,mf_q50,mf_q84,chif_q16,chif_q50,chif_q84"
+        "N,ndim,dynesty_mode,nlive,nlive_init,nlive_batch,maxbatch,niter,ncall_total,eff_percent,logz,logzerr,"
+        "dlogz_target,dlogz_init_target,converged,posterior_ess_kish,posterior_ess_target,"
+        "boundary_mf_frac,boundary_chif_frac,boundary_amp_frac,map_mf_msun,map_chif,"
+        "mf_q16,mf_q50,mf_q84,chif_q16,chif_q50,chif_q84,postpeak_optimal_snr,h_peak,"
+        "delta_hpeak_minus_complex_peak_ms,psd_source"
     ]
 
     chi_interp = np.linspace(max(args.chif_min, 0.0), chif_hi, 240)
@@ -412,30 +260,13 @@ def main() -> None:
                 wi = np.interp(chif, chi_interp, qnm_table_im[k])
                 omegas[k] = (wr + 1j * wi) / mf_frac
 
-            if args.likelihood_domain == "frequency":
-                if fd_like is None:
-                    return -np.inf
-                return float(
-                    fd_like.log_likelihood(
-                        omegas_rad_s=omegas / m_sec,
-                        amplitudes=amp_rel * h_peak,
-                        phases=phis,
-                    )
+            return float(
+                fd_like.log_likelihood(
+                    omegas_rad_s=omegas / m_sec,
+                    amplitudes=amp_rel * signal.h_peak,
+                    phases=phis,
                 )
-
-            if data is None:
-                return -np.inf
-            tau = t - t0
-            model_c = np.zeros_like(t, dtype=complex)
-            for k in range(n + 1):
-                model_c += (amp_rel[k] * h_peak) * np.exp(-1j * (omegas[k] * tau + phis[k]))
-            model = model_c if args.strain_channel == "complex" else model_c.real
-            resid = data - model
-            if np.iscomplexobj(resid):
-                chi2 = float(np.vdot(resid, resid).real / (sigma**2))
-            else:
-                chi2 = float(np.dot(resid, resid) / (sigma**2))
-            return float(-0.5 * chi2)
+            )
 
         dynesty_kwargs: dict[str, object] = dict(
             bound=args.dynesty_bound,
@@ -511,12 +342,7 @@ def main() -> None:
         mf_s = samples_eq[:, 0]
         chif_s = samples_eq[:, 1]
 
-        hist2d, xedges, yedges = np.histogram2d(
-            mf_s,
-            chif_s,
-            bins=[mf_grid, chif_grid],
-            density=False,
-        )
+        hist2d, _, _ = np.histogram2d(mf_s, chif_s, bins=[mf_grid, chif_grid], density=False)
         pdf2d = hist2d.T
         if np.sum(pdf2d) <= 0:
             raise RuntimeError(f"invalid posterior histogram for N={n}")
@@ -556,7 +382,9 @@ def main() -> None:
             f"{logzerr:.6f},{args.dynesty_dlogz:.6f},{args.dynesty_dlogz_init:.6f},{int(converged)},"
             f"{ess_kish:.3f},{args.posterior_ess_target:.3f},"
             f"{mf_boundary:.6f},{chif_boundary:.6f},{amp_boundary:.6f},{map_mf:.6f},{map_chi:.6f},"
-            f"{mf_q16:.6f},{mf_q50:.6f},{mf_q84:.6f},{ch_q16:.6f},{ch_q50:.6f},{ch_q84:.6f}"
+            f"{mf_q16:.6f},{mf_q50:.6f},{mf_q84:.6f},{ch_q16:.6f},{ch_q50:.6f},{ch_q84:.6f},"
+            f"{signal.postpeak_optimal_snr:.6f},{signal.h_peak:.6e},{signal.delta_hpeak_minus_complex_peak_ms:.6f},"
+            f"{signal.psd_source}"
         )
         print(
             f"N={n} mode={args.dynesty_mode} nlive={nlive_report} niter={niter} ncall={ncall_total} "
@@ -619,7 +447,10 @@ def main() -> None:
     ax_right.set_xlabel("Posterior")
     ax_right.grid(True, alpha=0.15)
     ax_right.tick_params(axis="y", labelleft=False)
-    ax_top.set_title(rf"Fig.10-style Dynesty posteriors ($\Delta t_0={args.delta_t0_ms:.3f}$ ms)")
+    ax_top.set_title(
+        rf"Fig.10 paper-faithful Dynesty ($\Delta t_0={args.delta_t0_ms:.3f}$ ms, "
+        rf"SNR$_{{\rm post}}$={signal.postpeak_optimal_snr:.1f}$)$"
+    )
     fig.tight_layout()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=180)
@@ -663,34 +494,18 @@ def main() -> None:
     args.diag_csv.parent.mkdir(parents=True, exist_ok=True)
     args.diag_csv.write_text("\n".join(diag_rows) + "\n", encoding="utf-8")
 
-    print(f"source={wf.source}")
-    print(f"distance_mpc={args.distance_mpc:.3f}")
+    print("paper_forward_model=shared")
+    for key, value in paper_fig10_signal_diagnostics(signal).items():
+        print(f"{key}={value}")
     print(
         f"sampler=dynesty mode={args.dynesty_mode} bound={args.dynesty_bound} sample={args.dynesty_sample} "
         f"nlive={args.dynesty_nlive} nlive_init={args.dynesty_nlive_init} "
         f"nlive_batch={args.dynesty_nlive_batch} dlogz={args.dynesty_dlogz:.4f} "
         f"dlogz_init={args.dynesty_dlogz_init:.4f}"
     )
-    print(f"strain_channel={args.strain_channel}, likelihood_domain={args.likelihood_domain}, psd_model={args.psd_model}")
-    print(f"t_peak_complex_raw_M={t_peak_complex_raw:.6f}")
-    print(f"t_peak_complex_aligned_M={t_peak_complex_aligned:.6f}")
-    print(f"t_peak_plus_aligned_M={t_peak_plus_aligned:.6f}")
-    print(f"delta_t0_ms={args.delta_t0_ms:.6f}, delta_t0_M={delta_t0_M:.6f}, t0_ref_M={t_peak_ref:.6f}, t0_M={t0:.6f}")
+    print(f"likelihood_channel=real, valid_freq_bins={fd_like.n_valid}")
     print(f"n_values={n_values}")
     print(f"true_mf_msun={true_mf_msun:.6f}, true_chif={true_chif:.6f}")
-    print(f"target_hpeak={args.target_hpeak:.3e}, achieved_hpeak={h_peak:.3e}")
-    print(
-        f"target_postpeak_snr={args.target_snr_postpeak:.3f}, "
-        f"pre_rescale_psd_snr={snr_before_rescale:.3f}, snr_rescale_factor={snr_rescale_factor:.6f}, "
-        f"achieved_postpeak_snr={snr_achieved:.3f}"
-    )
-    if args.likelihood_domain == "frequency":
-        print(
-            f"window_samples={t.size}, valid_freq_bins={freq_n_valid}, "
-            f"f_range_hz=[{args.f_min_hz:.3f}, {args.f_max_hz:.3f}], df_hz={freq_df_hz:.6f}"
-        )
-    else:
-        print(f"window_samples={t.size}, sigma={sigma:.3e}")
     print(f"diag_csv={args.diag_csv}")
     print(f"trace_output={args.trace_output}")
     print(f"trace_all_prefix={args.trace_all_prefix}")

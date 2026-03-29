@@ -1,3 +1,9 @@
+"""Legacy N=3 sampler diagnostic.
+
+This script was built before the shared paper-faithful forward refactor and
+should be treated as a legacy exploratory diagnostic unless migrated.
+"""
+
 from __future__ import annotations
 
 import argparse

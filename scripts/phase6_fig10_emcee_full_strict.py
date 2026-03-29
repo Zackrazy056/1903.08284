@@ -8,18 +8,16 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ringdown.fd_likelihood import (
-    aligo_zero_det_high_power_psd,
-    continuous_ft_from_time_series,
-    draw_colored_noise_rfft,
-    optimal_snr,
-    real_ringdown_mode_tilde,
-)
+from ringdown.fd_likelihood import real_ringdown_mode_tilde
 from ringdown.frequencies import kerr_qnm_omegas_22n
-from ringdown.sxs_io import load_sxs_waveform22
-
-
-MSUN_SEC = 4.92549095e-6
+from ringdown.paper_fig10 import (
+    MSUN_SEC,
+    PaperFigure10Config,
+    PaperFigure10Priors,
+    build_paper_fig10_signal,
+    inject_paper_fig10_noise,
+    paper_fig10_signal_diagnostics,
+)
 
 
 def parse_int_list(text: str) -> list[int]:
@@ -54,28 +52,9 @@ def robust_tau_ess(chain: np.ndarray) -> tuple[float, float, float]:
         return float("nan"), float("nan"), float("nan")
 
 
-def detector_strain_from_mode22(h22: np.ndarray) -> np.ndarray:
-    if h22.ndim != 1:
-        raise ValueError("h22 must be 1D")
-    i_ref = int(np.argmax(np.abs(h22)))
-    href = h22[i_ref]
-    # 用峰值点相位做全局旋转，把 h22 对齐到“plus-like”实通道。
-    # 这一步决定后续 t_h-peak 与振幅归一化口径。
-    phase_ref = float(np.angle(href)) if np.abs(href) > 0 else 0.0
-    return np.real(h22 * np.exp(-1j * phase_ref))
-
-
-def peak_time_from_detector_strain(t: np.ndarray, h_det: np.ndarray) -> float:
-    if t.ndim != 1 or h_det.ndim != 1 or t.size != h_det.size:
-        raise ValueError("t and h_det must be 1D arrays with identical length")
-    idx = int(np.argmax(np.abs(h_det)))
-    return float(t[idx])
-
-
 def health_failed(acc: float, tau_mf: float, tau_chif: float, min_acceptance: float) -> tuple[bool, str]:
     if not np.isfinite(acc):
         return True, "acceptance is not finite"
-    # 采样健康门禁：拒绝低接受率或 tau 非法的结果，避免假收敛出图。
     if acc < min_acceptance:
         return True, f"acceptance={acc:.6f} < {min_acceptance:.6f}"
     if not np.isfinite(tau_mf) or not np.isfinite(tau_chif):
@@ -115,7 +94,6 @@ class RingdownPosterior:
         valid = (psd > 0.0) & np.isfinite(psd) & (freqs_hz > 0.0)
         if np.count_nonzero(valid) < 16:
             raise ValueError("too few valid frequency bins")
-        # 仅在有效频段计算似然，减少无信息/病态频点对后验的污染。
         self.f_calc = freqs_hz[valid]
         self.psd_calc = psd[valid]
         self.d_calc = d_tilde[valid]
@@ -169,7 +147,6 @@ class RingdownPosterior:
 
         amps = theta[2::2] * self.h_peak
         phis = theta[3::2]
-        # 由 (Mf, chi_f) 插值出 QNM 频率，是 remnant 参数进入模型的主通道。
         omegas_m = np.empty(self.n_modes, dtype=complex)
         for k in range(self.n_modes):
             wr = np.interp(chif, self.chi_grid, self.qnm_re[k])
@@ -184,7 +161,6 @@ class RingdownPosterior:
             phis,
             duration_sec=self.duration_sec,
         )
-        # PSD 加权高斯似然：lnL = <d,h> - 1/2<h,h>。
         d_h = 4.0 * self.df * np.sum(np.real(self.d_weighted * np.conjugate(h_tilde)))
         h_h = 4.0 * self.df * np.sum((np.abs(h_tilde) ** 2) / self.psd_calc)
         return float(d_h - 0.5 * h_h)
@@ -206,7 +182,6 @@ def run_emcee_chain(
     burnin_steps: int,
     prod_steps: int,
 ) -> tuple[np.ndarray, np.ndarray, float, float, float, float]:
-    # burn-in 后 reset，再统计生产链，避免把预热段混入后验统计。
     em = emcee.EnsembleSampler(p0.shape[0], posterior.ndim, posterior.log_posterior)
     state = em.run_mcmc(p0, burnin_steps, progress=False)
     em.reset()
@@ -224,14 +199,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-download", action="store_true")
     p.add_argument("--n-values", type=str, default="0,1,2,3")
     p.add_argument("--m-total-msun", type=float, default=72.0)
-    p.add_argument("--target-hpeak", type=float, default=2e-21)
-    p.add_argument("--target-snr-postpeak", type=float, default=42.3)
+    p.add_argument("--distance-mpc", type=float, default=400.0)
     p.add_argument("--delta-t0-ms", type=float, default=0.0)
     p.add_argument("--t-end", type=float, default=90.0)
     p.add_argument("--f-min-hz", type=float, default=20.0)
     p.add_argument("--f-max-hz", type=float, default=1024.0)
     p.add_argument("--df-hz", type=float, default=1.0)
-    p.add_argument("--mf-min-msun", type=float, default=50.0)
+    p.add_argument("--mf-min-msun", type=float, default=10.0)
     p.add_argument("--mf-max-msun", type=float, default=100.0)
     p.add_argument("--chif-min", type=float, default=0.0)
     p.add_argument("--chif-max", type=float, default=1.0)
@@ -264,52 +238,33 @@ def main() -> None:
         raise ValueError(f"nwalkers must be > max ndim ({ndim_max})")
 
     rng = np.random.default_rng(args.seed)
-    wf, info = load_sxs_waveform22(location=args.sxs_location, download=not args.no_download)
-    if info.remnant_mass is None or info.remnant_chif_z is None:
-        raise ValueError("missing remnant metadata")
+    priors = PaperFigure10Priors(
+        mf_bounds_msun=(args.mf_min_msun, args.mf_max_msun),
+        chif_bounds=(args.chif_min, args.chif_max),
+        amp_bounds_rel=(args.amp_min_rel, args.amp_max_rel),
+    )
+    signal = build_paper_fig10_signal(
+        PaperFigure10Config(
+            sxs_location=args.sxs_location,
+            total_mass_msun=args.m_total_msun,
+            distance_mpc=args.distance_mpc,
+            delta_t0_ms=args.delta_t0_ms,
+            t_end_m=args.t_end,
+            f_min_hz=args.f_min_hz,
+            f_max_hz=args.f_max_hz,
+            df_hz=args.df_hz,
+            priors=priors,
+            download=not args.no_download,
+        )
+    )
+    observation = inject_paper_fig10_noise(signal, rng)
 
-    t_all = wf.t
-    h22 = wf.h
-    h_det_raw = detector_strain_from_mode22(h22)
-    # 以 detector-strain 峰值定义 t_h-peak，把时间轴平移到该峰值为 0。
-    t_hpeak = peak_time_from_detector_strain(t_all, h_det_raw)
-    t_all = t_all - t_hpeak
-    h_peak_raw = float(np.max(np.abs(h_det_raw)))
-    if h_peak_raw <= 0:
-        raise RuntimeError("detector strain has non-positive peak amplitude")
-    h = h_det_raw * (args.target_hpeak / h_peak_raw)
-
-    m_sec = MSUN_SEC * args.m_total_msun
-    ms_per_m = m_sec * 1e3
-    t0 = float(args.delta_t0_ms / ms_per_m)
-    mask = (t_all >= t0) & (t_all <= args.t_end)
-    t = t_all[mask]
-    h = h[mask]
-    if t.size < 64:
-        raise ValueError("analysis window too short")
-    tau = t - t0
-    dt = float(np.median(np.diff(tau)))
-    tau_u = np.arange(0.0, float(tau[-1]) + 0.5 * dt, dt)
-    h_u = np.interp(tau_u, tau, h)
-    tau_u_sec = tau_u * m_sec
-
-    freqs = np.arange(args.f_min_hz, args.f_max_hz + 0.5 * args.df_hz, args.df_hz)
-    psd = aligo_zero_det_high_power_psd(freqs, f_low_hz=10.0)
-    valid = (freqs >= args.f_min_hz) & (freqs <= args.f_max_hz) & np.isfinite(psd) & (psd > 0.0)
-    signal_tilde = continuous_ft_from_time_series(tau_u_sec, h_u, freqs)
-    snr_before = optimal_snr(signal_tilde, psd, args.df_hz, valid_mask=valid)
-    # 先统一注入信号到目标 post-peak SNR（论文常用 ~42.3）。
-    snr_scale = float(args.target_snr_postpeak / snr_before)
-    h_u = h_u * snr_scale
-    signal_tilde = continuous_ft_from_time_series(tau_u_sec, h_u, freqs)
-    snr_after = optimal_snr(signal_tilde, psd, args.df_hz, valid_mask=valid)
-    # 噪声按同一 PSD 生成，构造 d(f)=h(f)+n(f) 的观测数据。
-    noise = draw_colored_noise_rfft(rng, freqs.size, psd, args.df_hz, enforce_real_endpoints=True)
-    d_tilde = signal_tilde + noise
-    h_peak = float(np.max(np.abs(h))) * snr_scale
-
-    true_mf = float(info.remnant_mass * args.m_total_msun)
-    true_chif = float(info.remnant_chif_z)
+    freqs = signal.freqs_hz
+    psd = signal.psd
+    d_tilde = observation.d_tilde
+    h_peak = signal.h_peak
+    true_mf = signal.true_mf_msun
+    true_chif = signal.true_chif
 
     colors = {0: "#1f77b4", 1: "#6f2da8", 2: "#d4a017", 3: "#d62728"}
     linestyles = {0: "-", 1: "--", 2: "--", 3: "-"}
@@ -322,7 +277,9 @@ def main() -> None:
     level90_by_n: dict[int, float] = {}
 
     diag_rows = [
-        "N,sampler,nwalkers,burnin_or_init,steps,acceptance,tau_mf,tau_chif,ess,mf_q16,mf_q50,mf_q84,chif_q16,chif_q50,chif_q84,snr_after"
+        "N,sampler,nwalkers,burnin_or_init,steps,acceptance,tau_mf,tau_chif,ess,"
+        "mf_q16,mf_q50,mf_q84,chif_q16,chif_q50,chif_q84,"
+        "postpeak_optimal_snr,h_peak,delta_hpeak_minus_complex_peak_ms,psd_source"
     ]
 
     for n in n_values:
@@ -330,14 +287,14 @@ def main() -> None:
             freqs_hz=freqs,
             d_tilde=d_tilde,
             psd=psd,
-            duration_sec=float(tau_u_sec[-1]),
+            duration_sec=signal.duration_sec,
             h_peak=h_peak,
             n_overtones=n,
             m_total_msun=args.m_total_msun,
-            mf_bounds=(args.mf_min_msun, args.mf_max_msun),
+            mf_bounds=priors.mf_bounds_msun,
             chif_bounds=(args.chif_min, min(args.chif_max, 0.999)),
-            amp_bounds_rel=(args.amp_min_rel, args.amp_max_rel),
-            phi_bounds=(0.0, 2.0 * np.pi),
+            amp_bounds_rel=priors.amp_bounds_rel,
+            phi_bounds=priors.phi_bounds,
             qnm_chi_grid_size=args.qnm_chi_grid_size,
         )
         p0 = posterior.sample_prior(rng, args.nwalkers)
@@ -358,14 +315,14 @@ def main() -> None:
         diag_rows.append(
             f"{n},emcee,{args.nwalkers},{args.emcee_burnin},{args.emcee_steps},{acc:.6f},"
             f"{tau_mf:.3f},{tau_ch:.3f},{ess:.2f},{mf_q16:.6f},{mf_q50:.6f},{mf_q84:.6f},"
-            f"{ch_q16:.6f},{ch_q50:.6f},{ch_q84:.6f},{snr_after:.6f}"
+            f"{ch_q16:.6f},{ch_q50:.6f},{ch_q84:.6f},{signal.postpeak_optimal_snr:.6f},"
+            f"{signal.h_peak:.6e},{signal.delta_hpeak_minus_complex_peak_ms:.6f},{signal.psd_source}"
         )
 
         if args.samples_prefix is not None:
             out_e = args.samples_prefix.with_name(args.samples_prefix.stem + f"_N{n}_emcee.npz")
             np.savez_compressed(out_e, chain=chain, flat=flat)
 
-        # N=3 额外做第二条链一致性检查，避免单链偶然落入局部模态。
         if n == 3 and args.emcee_alt_steps > 0:
             rng_alt = np.random.default_rng(args.seed + 100000)
             if args.n3_alt_init == "from_primary":
@@ -396,7 +353,8 @@ def main() -> None:
             diag_rows.append(
                 f"3,emcee_alt,{args.nwalkers},{args.emcee_alt_burnin},{args.emcee_alt_steps},{acc_a:.6f},"
                 f"{tau_mf_a:.3f},{tau_ch_a:.3f},{ess_a:.2f},{mf_a_q16:.6f},{mf_a_q50:.6f},{mf_a_q84:.6f},"
-                f"{ch_a_q16:.6f},{ch_a_q50:.6f},{ch_a_q84:.6f},{snr_after:.6f}"
+                f"{ch_a_q16:.6f},{ch_a_q50:.6f},{ch_a_q84:.6f},{signal.postpeak_optimal_snr:.6f},"
+                f"{signal.h_peak:.6e},{signal.delta_hpeak_minus_complex_peak_ms:.6f},{signal.psd_source}"
             )
             if args.samples_prefix is not None:
                 out_ea = args.samples_prefix.with_name(args.samples_prefix.stem + "_N3_emcee_alt.npz")
@@ -420,7 +378,10 @@ def main() -> None:
         mf_centers = 0.5 * (mf_grid[:-1] + mf_grid[1:])
         ch_centers = 0.5 * (chif_grid[:-1] + chif_grid[1:])
         post_mf_by_n[n] = normalize_1d_pdf(mf_centers, np.histogram(mf, bins=mf_grid, density=False)[0].astype(float))
-        post_chif_by_n[n] = normalize_1d_pdf(ch_centers, np.histogram(ch, bins=chif_grid, density=False)[0].astype(float))
+        post_chif_by_n[n] = normalize_1d_pdf(
+            ch_centers,
+            np.histogram(ch, bins=chif_grid, density=False)[0].astype(float),
+        )
 
         print(
             f"N={n} emcee_acc={acc:.4f} tau=({tau_mf:.1f},{tau_ch:.1f}) "
@@ -438,7 +399,15 @@ def main() -> None:
     for n in n_values:
         c = colors.get(n, None)
         ls = linestyles.get(n, "-")
-        ax_main.contour(mf_centers, chif_centers, pdf2d_by_n[n], levels=[level90_by_n[n]], colors=[c], linestyles=[ls], linewidths=2.0)
+        ax_main.contour(
+            mf_centers,
+            chif_centers,
+            pdf2d_by_n[n],
+            levels=[level90_by_n[n]],
+            colors=[c],
+            linestyles=[ls],
+            linewidths=2.0,
+        )
         ax_top.plot(mf_centers, post_mf_by_n[n], color=c, ls=ls, lw=1.8)
         ax_right.plot(post_chif_by_n[n], chif_centers, color=c, ls=ls, lw=1.8)
         handles.append(mlines.Line2D([], [], color=c, ls=ls, lw=2.0, label=f"N={n}"))
@@ -457,17 +426,19 @@ def main() -> None:
     ax_right.set_xlabel("Posterior")
     ax_right.grid(True, alpha=0.15)
     ax_right.tick_params(axis="y", labelleft=False)
-    ax_top.set_title(rf"Fig.10-style posteriors with emcee ($\Delta t_0={args.delta_t0_ms:.3f}$ ms)")
+    ax_top.set_title(
+        rf"Fig.10 paper-faithful emcee ($\Delta t_0={args.delta_t0_ms:.3f}$ ms, "
+        rf"SNR$_{{\rm post}}$={signal.postpeak_optimal_snr:.1f}$)$"
+    )
     fig.tight_layout()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=180)
 
     args.diag_csv.parent.mkdir(parents=True, exist_ok=True)
     args.diag_csv.write_text("\n".join(diag_rows) + "\n", encoding="utf-8")
-    print(f"true_mf_msun={true_mf:.6f}, true_chif={true_chif:.6f}")
-    print(f"t_hpeak_shift_m={t_hpeak:.6f}")
+    for key, value in paper_fig10_signal_diagnostics(signal).items():
+        print(f"{key}={value}")
     print(f"n_values={n_values}")
-    print(f"snr_before={snr_before:.3f}, snr_scale={snr_scale:.6f}, snr_after={snr_after:.3f}")
     print(f"diag_csv={args.diag_csv}")
     print(f"output={args.output}")
 

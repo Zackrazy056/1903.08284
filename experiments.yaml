@@ -1,0 +1,49 @@
+experiments:
+  - experiment_id: paper_fig10_dynesty_short
+    paper_target: "Fig.10 detector-study posterior comparison (N=0..3)"
+    status: production
+    forward_model: "shared paper_fig10 forward"
+    likelihood_model: "real-channel frequency-domain Gaussian likelihood"
+    parameterization: "paper linear amplitudes + absolute phases"
+    entry_script: "scripts/production/paper_fig10_dynesty_short.py"
+    output_dir: "results/production/paper_fig10_dynesty_short"
+    include_constant_offset: false
+    physics_heuristics_enabled: false
+  - experiment_id: paper_fig10_profile_geometry
+    paper_target: "Fig.10 posterior-geometry diagnosis under shared forward"
+    status: exploratory
+    forward_model: "shared paper_fig10 forward"
+    likelihood_model: "real-channel frequency-domain Gaussian likelihood"
+    parameterization: "profiled amplitudes/phases at fixed (Mf, chif)"
+    entry_script: "scripts/exploratory/paper_fig10_profile_geometry.py"
+    output_dir: "results/exploratory/paper_fig10_profile_geometry"
+    include_constant_offset: false
+    physics_heuristics_enabled: false
+  - experiment_id: paper_fig10_n0_anchor
+    paper_target: "Fig.10 N=0 sanity-anchor posterior under the shared forward"
+    status: production
+    forward_model: "shared paper_fig10 forward"
+    likelihood_model: "real-channel frequency-domain Gaussian likelihood"
+    parameterization: "paper linear amplitudes + absolute phases"
+    entry_script: "scripts/production/paper_fig10_n0_anchor.py"
+    output_dir: "results/production/paper_fig10_n0_anchor"
+    include_constant_offset: false
+    physics_heuristics_enabled: false
+  - experiment_id: paper_fig10_n3_logrel_relphase_candidate
+    paper_target: "Fig.10 N=3 production-candidate posterior under improved parameterization"
+    status: production_candidate
+    forward_model: "shared paper_fig10 forward"
+    likelihood_model: "real-channel frequency-domain Gaussian likelihood"
+    parameterization: "log amplitude + relative-to-fundamental amplitudes + relative phases"
+    entry_script: "scripts/production/paper_fig10_n3_logrel_relphase_candidate.py"
+    output_dir: "results/production/paper_fig10_n3_logrel_relphase_candidate"
+    include_constant_offset: false
+    physics_heuristics_enabled: false
+
+conventions:
+  detector_channel: "plus-only real detector channel from face-on (l=m=2) mode"
+  peak_definition: "detector-strain peak t_h-peak"
+  psd_source: "bilby aLIGO design PSD"
+  finite_duration_convention: "duration_sec = tau_window_sec[-1] = (N-1)dt on the uniform post-t0 grid"
+  mass_unit_convention: "NR times in total-mass geometric units; Fourier model evaluated in SI seconds"
+  epsilon_mass_scale: "initial total binary mass M, matching paper Eq.(4)"

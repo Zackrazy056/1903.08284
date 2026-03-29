@@ -207,6 +207,7 @@ class FrequencyDomainRingdownLikelihood:
     f_min_hz: float = 20.0
     f_max_hz: float | None = None
     include_finite_duration: bool = True
+    channel: str = "complex"
 
     def __post_init__(self) -> None:
         if self.freqs_hz.shape != self.d_tilde.shape or self.freqs_hz.shape != self.psd.shape:
@@ -215,6 +216,8 @@ class FrequencyDomainRingdownLikelihood:
             raise ValueError("df must be positive")
         if self.duration_sec <= 0:
             raise ValueError("duration_sec must be positive")
+        if self.channel not in {"complex", "real"}:
+            raise ValueError("channel must be either 'complex' or 'real'")
 
         if self.f_max_hz is None:
             vmax = np.inf
@@ -253,11 +256,33 @@ class FrequencyDomainRingdownLikelihood:
         return int(np.count_nonzero(self._valid_mask))
 
     @property
+    def f_calc(self) -> np.ndarray:
+        return self._f_calc
+
+    @property
+    def d_calc(self) -> np.ndarray:
+        return self._d_calc
+
+    @property
+    def psd_calc(self) -> np.ndarray:
+        return self._psd_calc
+
+    @property
     def dd_const(self) -> float:
         return self._dd_const
 
     def model_tilde(self, omegas_rad_s: np.ndarray, amplitudes: np.ndarray, phases: np.ndarray) -> np.ndarray:
-        return complex_ringdown_mode_tilde(
+        if self.channel == "complex":
+            return complex_ringdown_mode_tilde(
+                self._f_calc,
+                omegas_rad_s,
+                amplitudes,
+                phases,
+                duration_sec=self.duration_sec,
+                t0_sec=self.t0_sec,
+                include_finite_duration=self.include_finite_duration,
+            )
+        return real_ringdown_mode_tilde(
             self._f_calc,
             omegas_rad_s,
             amplitudes,
